@@ -1,0 +1,1736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kisan Seva — Farmer Procurement</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Hind:wght@400;500;600;700&family=Noto+Nastaliq+Urdu:wght@400;600;700&family=Noto+Sans+Bengali:wght@400;600;700&display=swap" rel="stylesheet">
+<!-- PHASE 1: Firebase SDK - must load before the Firebase init code further down -->
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --bg:#F6F2E6;
+    --ink:#22261F;
+    --muted:#6B6A5C;
+    --green-900:#1F4D36;
+    --green-600:#2F8F5B;
+    --gold-600:#D9A404;
+    --gold-100:#FBEEC2;
+    --rust-500:#C9622A;
+    --sand-200:#EDE6D3;
+    --line:#DDD3B8;
+    --white:#FFFDF8;
+    --radius-lg:22px;
+    --radius-md:14px;
+    --radius-sm:10px;
+    --shadow-card:0 1px 3px rgba(34,38,31,0.06);
+  }
+
+  *{box-sizing:border-box;}
+  *:focus-visible{outline:2px solid var(--gold-600); outline-offset:2px;}
+
+  html, body{ width:100%; max-width:100vw; overflow-x:hidden; }
+  body{
+    margin:0;
+    font-family:'Hind', system-ui, sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    padding-bottom:30px;
+  }
+  body.rtl{ font-family:'Noto Nastaliq Urdu','Hind', system-ui, sans-serif; }
+  body[lang="bn"]{ font-family:'Noto Sans Bengali','Hind', system-ui, sans-serif; }
+
+  .ltr-num{ direction:ltr; unicode-bidi:isolate; display:inline-block; }
+
+  /* ===== Top bar ===== */
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 20px;
+    background:var(--green-900);
+    color:var(--white);
+    flex-wrap:wrap; gap:10px;
+  }
+  .brand{ font-weight:700; font-size:clamp(1rem,3vw,1.15rem); display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .topbar-right{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .view-tabs{ display:flex; flex-wrap:wrap; gap:6px; background:rgba(255,255,255,0.12); padding:4px; border-radius:999px; }
+  .view-tabs button{
+    border:none; background:transparent; color:var(--white);
+    padding:8px 15px; border-radius:999px; font-family:inherit; font-size:0.85rem;
+    cursor:pointer; font-weight:600; opacity:0.8; transition:opacity .15s; white-space:nowrap;
+  }
+  .view-tabs button.active{ background:var(--gold-600); color:var(--ink); opacity:1; }
+
+  #langSelect{
+    background:rgba(255,255,255,0.14); color:var(--white); border:1px solid rgba(255,255,255,0.3);
+    border-radius:999px; padding:8px 14px; font-family:inherit; font-size:0.85rem; font-weight:600;
+    cursor:pointer; max-width:150px;
+  }
+  #langSelect option{ color:var(--ink); }
+
+  /* ===== Page content wrapper (safety against overflow) ===== */
+  .page-content{ width:100%; overflow-x:hidden; }
+  @media (min-width:1024px){ .page-content{ display:flex; justify-content:center; } }
+
+  /* ===== Farmer wrapper ===== */
+  .farmer-wrapper{ padding:22px 20px; max-width:440px; width:100%; margin:0 auto; }
+  .quick-jump{ display:flex; flex-wrap:wrap; justify-content:center; gap:8px; padding:2px 2px 16px; }
+  .quick-jump button{
+    flex:0 0 auto; border:1px solid var(--line); background:var(--white);
+    color:var(--muted); padding:7px 13px; border-radius:999px; font-family:inherit;
+    font-size:0.76rem; cursor:pointer; font-weight:600; transition:all .15s; white-space:nowrap;
+  }
+  .quick-jump button.current{ background:var(--green-900); color:var(--white); border-color:var(--green-900); }
+
+  /* ===== Phone frame ===== */
+  .phone-frame{ background:var(--white); border-radius:36px; border:8px solid var(--ink); box-shadow:0 20px 40px rgba(31,77,54,0.18); overflow:hidden; position:relative; width:100%; }
+  .phone-notch{ width:90px; height:18px; background:var(--ink); border-radius:0 0 14px 14px; margin:0 auto; }
+  .screen-area{
+    height:660px; overflow-y:auto; overflow-x:hidden; padding:24px 20px 32px;
+    background-image: linear-gradient(rgba(246,242,230,0.92), rgba(246,242,230,0.92)), url('jai-kisan-bg.png');
+    background-size:cover; background-position:top center; background-repeat:no-repeat;
+  }
+  .screen{ display:none; }
+  .screen.active{ display:block; animation:fadeIn .25s ease; }
+  @keyframes fadeIn{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
+  @media (min-width:680px){ .farmer-wrapper{ max-width:420px; padding-top:30px; } .screen-area{ height:680px; } }
+
+  h2.screen-title{ font-size:1.28rem; font-weight:700; color:var(--green-900); margin:0 0 4px; line-height:1.3; }
+  p.screen-sub{ font-size:0.85rem; color:var(--muted); margin:0 0 20px; line-height:1.5; }
+
+  /* ===== Form controls ===== */
+  label{ display:block; font-size:0.83rem; font-weight:600; margin-bottom:6px; color:var(--ink); }
+  input[type=text], input[type=tel], input[type=number], input[type=password], select{
+    width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:var(--radius-sm);
+    font-family:inherit; font-size:0.96rem; background:var(--white); margin-bottom:14px;
+  }
+  input:disabled{ background:var(--sand-200); color:var(--muted); }
+  input:focus, select:focus{ border-color:var(--green-600); }
+  .field-error{ display:none; color:var(--rust-500); font-size:0.79rem; margin:-8px 0 14px; }
+  .hint{ font-size:0.75rem; color:var(--muted); margin:-8px 0 14px; }
+
+  .btn{ width:100%; padding:13px; border:none; border-radius:var(--radius-sm); background:var(--green-900); color:var(--white); font-family:inherit; font-size:0.94rem; font-weight:600; cursor:pointer; margin-top:4px; transition:filter .15s; }
+  .btn:hover:not(:disabled){ filter:brightness(1.08); }
+  .btn:disabled{ opacity:0.4; cursor:not-allowed; }
+  .btn-gold{ background:var(--gold-600); color:var(--ink); }
+  .btn-outline{ background:transparent; border:1.5px solid var(--green-900); color:var(--green-900); }
+  .btn-danger{ background:var(--rust-500); }
+
+  /* ===== Dashboard ===== */
+  .dash-hello{ font-size:1.22rem; font-weight:700; color:var(--green-900); margin-bottom:1px; }
+  .dash-cards{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:20px; }
+  .dash-card{ background:var(--white); border-radius:var(--radius-md); padding:15px 13px; cursor:pointer; border:1px solid var(--line); box-shadow:var(--shadow-card); transition:border-color .15s; }
+  .dash-card:hover{ border-color:var(--green-600); }
+  .dash-card .ic{ font-size:1.35rem; }
+  .dash-card .lbl{ font-weight:600; font-size:0.85rem; margin-top:8px; color:var(--ink); line-height:1.35; }
+
+  /* ===== Centre selection ===== */
+  .centre-card{ border:1.5px solid var(--line); border-radius:var(--radius-md); padding:14px 16px; margin-bottom:12px; cursor:pointer; background:var(--white); box-shadow:var(--shadow-card); transition:all .15s; }
+  .centre-card.selected{ border-color:var(--green-600); background:var(--gold-100); }
+  .centre-card .cname{ font-weight:700; font-size:0.95rem; }
+  .centre-card .cmeta{ font-size:0.79rem; color:var(--muted); margin-top:4px; }
+
+  /* ===== Chips ===== */
+  .chip-row{ display:flex; flex-wrap:wrap; gap:9px; margin-bottom:20px; }
+  .chip{ border:1.5px solid var(--line); background:var(--white); padding:9px 14px; border-radius:999px; font-size:0.81rem; cursor:pointer; font-weight:600; color:var(--ink); transition:all .15s; }
+  .chip.selected{ background:var(--green-900); border-color:var(--green-900); color:var(--white); }
+  .chip.full{ opacity:0.4; text-decoration:line-through; cursor:not-allowed; }
+
+  /* ===== Token ticket ===== */
+  .ticket{ background:var(--green-900); color:var(--white); border-radius:var(--radius-lg); padding:22px; text-align:center; margin-bottom:18px; }
+  .ticket .tk-label{ font-size:0.83rem; opacity:0.85; }
+  .ticket .tk-num{ font-size:2.8rem; font-weight:700; margin:6px 0 14px; }
+  .ticket-dashed{ border-top:2px dashed rgba(255,255,255,0.35); padding-top:14px; text-align:start; font-size:0.86rem; display:grid; gap:7px; }
+
+  /* ===== Queue screen ===== */
+  .serving-card{ background:var(--green-900); color:var(--white); border-radius:var(--radius-md); padding:18px; text-align:center; margin-bottom:14px; }
+  .serving-card .lbl{ font-size:0.83rem; opacity:0.85; }
+  .serving-card .num{ font-size:2rem; font-weight:700; }
+  .my-token-row{ display:flex; justify-content:space-between; align-items:center; margin:14px 0 10px; }
+  .my-token-row .val{ font-weight:700; color:var(--gold-600); font-size:1.02rem; }
+  .progress-track{ height:10px; background:var(--sand-200); border-radius:999px; overflow:hidden; margin-bottom:10px; }
+  .progress-fill{ height:100%; background:var(--gold-600); width:0%; transition:width .5s ease; }
+  #queueEstimate{ font-size:0.84rem; color:var(--muted); margin-bottom:22px; line-height:1.5; }
+  .queue-update-box{ background:var(--sand-200); border-radius:var(--radius-md); padding:16px; }
+  .queue-update-box .qu-label{ font-size:0.79rem; color:var(--ink); font-weight:600; margin-bottom:10px; }
+
+  /* ===== Timeline / status ===== */
+  .timeline{ margin:8px 0 22px; }
+  .t-step{ display:flex; gap:12px; padding-bottom:20px; position:relative; }
+  .t-step:not(:last-child)::before{ content:''; position:absolute; inset-inline-start:11px; top:26px; bottom:0; width:2px; background:var(--line); }
+  .t-dot{ width:24px; height:24px; border-radius:50%; flex:0 0 auto; display:flex; align-items:center; justify-content:center; font-size:0.73rem; color:var(--white); font-weight:700; background:var(--green-600); }
+  .t-step.pending .t-dot{ background:var(--gold-600); color:var(--ink); }
+  .t-text .t-title{ font-weight:600; font-size:0.89rem; }
+  .t-text .t-sub{ font-size:0.78rem; color:var(--muted); margin-top:1px; }
+  .amount-box{ background:var(--white); border:1px solid var(--line); border-radius:var(--radius-md); padding:16px; box-shadow:var(--shadow-card); }
+  .amount-row{ display:flex; justify-content:space-between; font-size:0.85rem; padding:5px 0; }
+  .amount-row.total{ font-weight:700; font-size:0.98rem; border-top:1px solid var(--line); margin-top:6px; padding-top:10px; }
+  .booking-mini{ background:var(--white); border:1px solid var(--line); border-radius:var(--radius-md); padding:14px 16px; margin-bottom:16px; font-size:0.83rem; display:grid; gap:5px; box-shadow:var(--shadow-card); }
+
+  /* ===== Admin view ===== */
+  .admin-wrapper{ display:none; max-width:980px; width:100%; margin:0 auto; padding:28px 20px 60px; }
+  .admin-wrapper.active{ display:block; }
+  .admin-head h2{ font-size:1.32rem; font-weight:700; color:var(--green-900); margin:0 0 2px; }
+  .admin-head p.sub{ color:var(--muted); font-size:0.87rem; margin:6px 0 22px; }
+  .stat-row{ display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:14px; margin-bottom:24px; }
+  .stat-card{ background:var(--white); border:1px solid var(--line); border-radius:var(--radius-md); padding:16px; box-shadow:var(--shadow-card); }
+  .stat-card .snum{ font-size:1.5rem; font-weight:700; color:var(--green-900); }
+  .stat-card .slabel{ font-size:0.77rem; color:var(--muted); margin-top:3px; line-height:1.35; }
+
+  .table-wrap{ overflow-x:auto; border:1px solid var(--line); border-radius:var(--radius-md); background:var(--white); box-shadow:var(--shadow-card); }
+  table{ width:100%; border-collapse:collapse; min-width:700px; }
+  th{ text-align:start; font-size:0.75rem; color:var(--muted); font-weight:600; padding:12px 14px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  td{ padding:13px 14px; border-bottom:1px solid var(--line); font-size:0.86rem; }
+  tr:last-child td{ border-bottom:none; }
+  .badge{ padding:5px 11px; border-radius:999px; font-size:0.75rem; font-weight:600; display:inline-block; white-space:nowrap; }
+  .badge-pending{ background:var(--gold-100); color:#8a6a02; }
+  .badge-active{ background:#DCEFE3; color:var(--green-900); }
+  .badge-done{ background:var(--green-900); color:var(--white); }
+  .btn-sm{ border:none; background:var(--green-900); color:var(--white); padding:8px 13px; border-radius:var(--radius-sm); font-family:inherit; font-size:0.78rem; font-weight:600; cursor:pointer; white-space:nowrap; transition:filter .15s; }
+  .btn-sm:hover{ filter:brightness(1.08); }
+  .btn-sm-gold{ background:var(--gold-600); color:var(--ink); }
+  .done-label{ font-size:0.78rem; color:var(--muted); white-space:nowrap; }
+  .admin-footer{ margin-top:20px; text-align:end; }
+  .admin-footer button{ width:auto; padding:10px 18px; }
+
+  /* ===== Modal ===== */
+  .modal-overlay{ display:none; position:fixed; inset:0; background:rgba(34,38,31,0.5); align-items:center; justify-content:center; padding:20px; z-index:50; }
+  .modal-overlay.active{ display:flex; }
+  .modal-card{ background:var(--white); border-radius:var(--radius-lg); padding:24px; width:100%; max-width:380px; }
+  .modal-card h3{ margin:0 0 8px; font-size:1.06rem; color:var(--green-900); }
+  .modal-card .modal-sub{ font-size:0.83rem; color:var(--muted); margin-bottom:16px; }
+  .modal-actions{ display:flex; gap:10px; margin-top:6px; }
+  .modal-actions .btn{ margin-top:0; }
+
+  /* ===== Authentication page tabs ===== */
+  .auth-switch{ display:flex; gap:6px; margin-bottom:22px; padding:4px; background:var(--sand-200); border-radius:999px; }
+  .auth-tab{ flex:1; border:0; border-radius:999px; padding:9px 12px; background:transparent; color:var(--muted); font:inherit; font-weight:600; cursor:pointer; }
+  .auth-tab.active{ background:var(--green-900); color:var(--white); }
+
+  /* ===== Notification toast (simulated) ===== */
+  #notify-toast{ position:fixed; top:-160px; left:50%; transform:translateX(-50%); width:92%; max-width:400px; background:var(--white); border-radius:var(--radius-md); box-shadow:0 8px 24px rgba(34,38,31,0.25); padding:14px 16px; z-index:999; transition:top .5s ease; border-inline-start:5px solid var(--green-900); }
+  #notify-toast.show{ top:16px; }
+  #notify-toast .nt-head{ display:flex; align-items:center; gap:7px; font-size:0.75rem; font-weight:700; color:var(--green-900); margin-bottom:4px; }
+  #notify-toast .nt-dot{ width:7px; height:7px; border-radius:50%; background:var(--gold-600); }
+  #notify-toast .nt-body{ font-size:0.85rem; color:var(--ink); line-height:1.4; }
+  #notify-toast .nt-time{ font-size:0.72rem; color:var(--muted); margin-top:6px; text-align:end; }
+
+  .empty-note{ text-align:center; color:var(--muted); padding:26px 10px; font-size:0.85rem; }
+
+  @media (prefers-reduced-motion: reduce){ *{ animation:none !important; transition:none !important; } }
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="brand">🌾 <span data-i18n="brand">Kisan Seva</span></div>
+    <div class="topbar-right">
+      <div class="view-tabs">
+        <button id="tabFarmer" class="active" onclick="switchView('farmer')" data-i18n="tabFarmer">Farmer View</button>
+        <button id="tabAdmin" onclick="switchView('admin')" data-i18n="tabOperator">Operator View</button>
+      </div>
+      <select id="langSelect" onchange="applyLanguage(this.value)">
+        <option value="en">English</option>
+        <option value="hi">हिन्दी</option>
+        <option value="ur">اردو</option>
+        <option value="mr">मराठी</option>
+        <option value="bn">বাংলা</option>
+        <option value="pa">ਪੰਜਾਬੀ</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="notify-toast">
+    <div class="nt-head"><span class="nt-dot"></span> <span data-i18n="notifyHeader">Notification (Simulated)</span></div>
+    <div class="nt-body" id="notifyBody">Message text</div>
+    <div class="nt-time ltr-num" id="notifyTime">Now</div>
+  </div>
+
+  <div class="page-content">
+
+  <!-- ================= FARMER VIEW ================= -->
+  <div id="farmerView" class="farmer-wrapper">
+
+    <div class="quick-jump" id="quickJump">
+      <button data-id="screen-auth" onclick="showAuthMode('login')" data-i18n="navLogin">Login</button>
+      <button data-id="screen-auth" onclick="showAuthMode('register')" data-i18n="navRegister">Register</button>
+      <button data-id="screen-dashboard" onclick="showScreen('screen-dashboard')" data-i18n="navDashboard">Dashboard</button>
+      <button data-id="screen-centre" onclick="showScreen('screen-centre')" data-i18n="navCentre">Centre</button>
+      <button data-id="screen-booking" onclick="showScreen('screen-booking')" data-i18n="navBooking">Booking</button>
+      <button data-id="screen-token" onclick="showScreen('screen-token')" data-i18n="navToken">Token</button>
+      <button data-id="screen-queue" onclick="showScreen('screen-queue')" data-i18n="navQueue">Queue</button>
+      <button data-id="screen-status" onclick="showScreen('screen-status')" data-i18n="navStatus">Status</button>
+    </div>
+
+    <div class="phone-frame">
+      <div class="phone-notch"></div>
+      <div class="screen-area">
+
+        <!-- Screen: Login + Registration (same authentication page) -->
+        <div class="screen active" id="screen-auth">
+          <div class="auth-switch" role="tablist" aria-label="Authentication">
+            <button type="button" id="authLoginTab" class="auth-tab active" onclick="showAuthMode('login')" data-i18n="navLogin">Login</button>
+            <button type="button" id="authRegisterTab" class="auth-tab" onclick="showAuthMode('register')" data-i18n="navRegister">Register</button>
+          </div>
+
+          <div id="authLoginPanel">
+            <h2 class="screen-title" data-i18n="loginTitle">Kisan Seva</h2>
+            <p class="screen-sub" data-i18n="loginSub">Login with your mobile number to sell your crop</p>
+
+            <label for="phoneInput" data-i18n="mobileLabel">Mobile Number</label>
+            <input type="tel" id="phoneInput" dir="ltr" maxlength="10" data-i18n-ph="mobilePh" placeholder="Enter 10-digit number">
+            <div class="field-error" id="phoneError"></div>
+            <button class="btn" id="sendOtpBtn" onclick="sendOtp()" data-i18n="sendOtpBtn">Send OTP</button>
+
+            <div id="otpSection" style="display:none; margin-top:18px;">
+              <label for="otpInput" data-i18n="otpLabel">Enter OTP</label>
+              <input type="text" id="otpInput" dir="ltr" maxlength="4" data-i18n-ph="otpPh" placeholder="4-digit OTP">
+              <div class="hint" data-i18n="otpHint">Demo OTP: 1234</div>
+              <div class="field-error" id="otpError"></div>
+              <button class="btn btn-gold" onclick="verifyOtp()" data-i18n="loginBtn">Login</button>
+            </div>
+          </div>
+
+          <div id="authRegisterPanel" style="display:none;">
+            <h2 class="screen-title" data-i18n="regTitle">Registration</h2>
+            <p class="screen-sub" data-i18n="regSub">Fill your details to book a procurement slot</p>
+
+            <label for="regName" data-i18n="nameLabel">Full Name</label>
+            <input type="text" id="regName" data-i18n-ph="namePh" placeholder="e.g. Ramesh Kumar">
+
+            <label for="regPhoneDisplay" data-i18n="mobileLabel2">Mobile Number</label>
+            <input type="tel" id="regPhoneDisplay" dir="ltr" maxlength="10" data-i18n-ph="mobilePh" placeholder="Enter 10-digit number">
+
+            <label for="regVillage" data-i18n="villageLabel">Village / Address</label>
+            <input type="text" id="regVillage" data-i18n-ph="villagePh" placeholder="Village, District">
+
+            <label for="regCrop" data-i18n="cropLabel">Crop Type</label>
+            <select id="regCrop">
+              <option value="" data-i18n="cropSelectPh">Select crop</option>
+              <option data-i18n="crop1">Wheat</option>
+              <option data-i18n="crop2">Rice</option>
+              <option data-i18n="crop3">Maize</option>
+              <option data-i18n="crop4">Sugarcane</option>
+              <option data-i18n="crop5">Other</option>
+            </select>
+
+            <label for="regQty" data-i18n="qtyLabel">Expected Quantity (Quintals)</label>
+            <input type="number" id="regQty" dir="ltr" data-i18n-ph="qtyPh" placeholder="e.g. 25">
+
+            <div class="field-error" id="regError"></div>
+            <button class="btn" onclick="registerFarmer()" data-i18n="regBtn">Register</button>
+          </div>
+        </div>
+
+        <!-- Screen: Dashboard -->
+        <div class="screen" id="screen-dashboard">
+          <div class="dash-hello" id="dashHello">Welcome 👋</div>
+          <p class="screen-sub" style="margin-top:8px;" data-i18n="dashSub">What would you like to do today?</p>
+          <div class="dash-cards">
+            <div class="dash-card" onclick="showScreen('screen-centre')">
+              <div class="ic">📅</div>
+              <div class="lbl" data-i18n="cardBookTitle">Book New Slot</div>
+            </div>
+            <div class="dash-card" onclick="showScreen('screen-queue')">
+              <div class="ic">🎫</div>
+              <div class="lbl" data-i18n="cardTokenTitle">View My Token</div>
+            </div>
+            <div class="dash-card" onclick="showScreen('screen-status')">
+              <div class="ic">💰</div>
+              <div class="lbl" data-i18n="cardPaymentTitle">Payment Status</div>
+            </div>
+            <div class="dash-card" onclick="switchView('admin')">
+              <div class="ic">🖥️</div>
+              <div class="lbl" data-i18n="cardOperatorTitle">Operator Panel</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Screen: Centre selection -->
+        <div class="screen" id="screen-centre">
+          <h2 class="screen-title" data-i18n="centreTitle">Select Centre</h2>
+          <p class="screen-sub" data-i18n="centreSub">Choose your nearest procurement centre</p>
+
+          <div class="centre-card selected" onclick="selectCentre(this)">
+            <div class="cname" data-i18n="centre1Name">State Procurement Centre – Rampur</div>
+            <div class="cmeta" data-i18n="centre1Meta">2.3 km away · 45/100 full today</div>
+          </div>
+          <div class="centre-card" onclick="selectCentre(this)">
+            <div class="cname" data-i18n="centre2Name">Cooperative Centre – Sonpur</div>
+            <div class="cmeta" data-i18n="centre2Meta">5.1 km away · 78/100 full today</div>
+          </div>
+          <div class="centre-card" onclick="selectCentre(this)">
+            <div class="cname" data-i18n="centre3Name">Mandi Samiti Centre – Ganjbazar</div>
+            <div class="cmeta" data-i18n="centre3Meta">7.8 km away · 20/100 full today</div>
+          </div>
+
+          <button class="btn" style="margin-top:8px;" onclick="showScreen('screen-booking')" data-i18n="continueBtn">Continue</button>
+        </div>
+
+        <!-- Screen: Booking -->
+        <div class="screen" id="screen-booking">
+          <h2 class="screen-title" data-i18n="bookingTitle">Book Slot</h2>
+          <p class="screen-sub" data-i18n="bookingSub">Choose date and time</p>
+
+          <label data-i18n="dateLabel">Select Date</label>
+          <div class="chip-row" id="dateChips">
+            <div class="chip selected" data-i18n="date1" onclick="selectDate(this)">26 Aug</div>
+            <div class="chip" data-i18n="date2" onclick="selectDate(this)">27 Aug</div>
+            <div class="chip" data-i18n="date3" onclick="selectDate(this)">28 Aug</div>
+          </div>
+
+          <label data-i18n="slotLabel">Select Time</label>
+          <div class="chip-row" id="slotChips">
+            <div class="chip selected" data-i18n="slot1" onclick="selectSlot(this)">9:00 - 10:00</div>
+            <div class="chip full" data-i18n="slot2Full" onclick="selectSlot(this)">10:00 - 11:00 (Full)</div>
+            <div class="chip" data-i18n="slot3" onclick="selectSlot(this)">11:00 - 12:00</div>
+            <div class="chip" data-i18n="slot4" onclick="selectSlot(this)">12:00 - 1:00</div>
+          </div>
+
+          <button class="btn" onclick="confirmBooking()" data-i18n="confirmBtn">Confirm Booking</button>
+        </div>
+
+        <!-- Screen: Token confirmation -->
+        <div class="screen" id="screen-token">
+          <h2 class="screen-title" data-i18n="tokenTitle">Booking Confirmed</h2>
+          <p class="screen-sub" data-i18n="tokenSub">Your token is ready</p>
+
+          <div class="ticket">
+            <div class="tk-label" data-i18n="tokenNumLabel">Token Number</div>
+            <div class="tk-num ltr-num" id="tokenNumberDisplay">#--</div>
+            <div class="ticket-dashed">
+              <div><span data-i18n="ticketCentreLabel">Centre</span>: <strong id="tokenCentreDisplay">-</strong></div>
+              <div><span data-i18n="ticketDateLabel">Date</span>: <strong id="tokenDateDisplay">-</strong></div>
+              <div><span data-i18n="ticketTimeLabel">Time</span>: <strong id="tokenSlotDisplay" class="ltr-num">-</strong></div>
+            </div>
+          </div>
+
+          <button class="btn btn-gold" onclick="showScreen('screen-queue')" data-i18n="viewQueueBtn">View Live Queue</button>
+        </div>
+
+        <!-- Screen: Queue -->
+        <div class="screen" id="screen-queue">
+          <h2 class="screen-title" data-i18n="queueTitle">Live Queue</h2>
+          <p class="screen-sub" data-i18n="queueSub">What's happening at the centre right now</p>
+          <div id="queueContent">
+            <div class="serving-card">
+              <div class="lbl" data-i18n="nowServingLabel">Now Serving</div>
+              <div class="num ltr-num" id="queueServingNum">#--</div>
+            </div>
+            <div class="my-token-row">
+              <span data-i18n="yourTokenLabel">Your Token</span>
+              <span class="val ltr-num" id="queueMyToken">#--</span>
+            </div>
+            <div class="progress-track"><div class="progress-fill" id="queueProgressFill"></div></div>
+            <div id="queueEstimate">—</div>
+            <div class="queue-update-box">
+              <div class="qu-label" data-i18n="queueUpdateLabel">Queue Update</div>
+              <button class="btn btn-outline" id="simulateBtn" onclick="simulateNextToken()" data-i18n="callNextBtn">Call Next Token</button>
+            </div>
+          </div>
+          <div class="empty-note" id="queueEmpty" style="display:none;" data-i18n="queueEmpty">No active booking yet</div>
+        </div>
+
+        <!-- Screen: Status (procurement + payment) -->
+        <div class="screen" id="screen-status">
+          <h2 class="screen-title" data-i18n="statusTitle">Procurement &amp; Payment Status</h2>
+          <p class="screen-sub ltr-num" id="statusSub">—</p>
+
+          <div id="statusContent">
+            <div class="booking-mini" id="statusBookingMini"></div>
+            <div class="timeline" id="statusTimeline"></div>
+            <div class="amount-box" id="statusAmountBox"></div>
+          </div>
+          <div class="empty-note" id="statusEmpty" style="display:none;" data-i18n="statusEmpty">No active booking yet</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= PHASE 1: ADMIN/OPERATOR LOGIN (protects Admin View below) ================= -->
+  <div id="adminLoginView" style="display:none; max-width:400px; width:100%; margin:40px auto; padding:0 20px;">
+    <div style="background:var(--white); border:1px solid var(--line); border-radius:var(--radius-lg); padding:28px 24px; box-shadow:var(--shadow-card);">
+      <h2 class="screen-title" data-i18n="adminLoginTitle">Admin / Operator Login</h2>
+      <p class="screen-sub" data-i18n="adminLoginSub">For authorized centre staff only. Farmers should use the Login tab above.</p>
+
+      <label for="adminEmailInput" data-i18n="emailLabel">Email</label>
+      <input type="text" id="adminEmailInput" dir="ltr" data-i18n-ph="emailPh" placeholder="you@example.com">
+
+      <label for="adminPasswordInput" data-i18n="passwordLabel">Password</label>
+      <input type="password" id="adminPasswordInput" dir="ltr">
+
+      <div class="field-error" id="adminLoginError"></div>
+      <button class="btn" onclick="adminLogin()" data-i18n="adminLoginBtn">Login</button>
+    </div>
+  </div>
+
+  <!-- ================= ADMIN VIEW ================= -->
+  <div id="adminView" class="admin-wrapper">
+    <div class="admin-head">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <h2 data-i18n="adminTitle">Operator Panel</h2>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span id="adminRoleLabel" style="font-size:0.8rem; color:var(--muted);"></span>
+          <button class="btn-sm" style="background:var(--rust-500);" onclick="adminLogout()" data-i18n="logoutBtn">Logout</button>
+        </div>
+      </div>
+      <p class="sub" id="adminSub">—</p>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-card"><div class="snum ltr-num" id="statTotal">0</div><div class="slabel" data-i18n="statTotalLabel">Total Bookings</div></div>
+      <div class="stat-card"><div class="snum ltr-num" id="statCheckedIn">0</div><div class="slabel" data-i18n="statCheckedInLabel">Checked In</div></div>
+      <div class="stat-card"><div class="snum ltr-num" id="statPending">0</div><div class="slabel" data-i18n="statPendingLabel">Payment Pending</div></div>
+      <div class="stat-card"><div class="snum ltr-num" id="statDone">0</div><div class="slabel" data-i18n="statDoneLabel">Completed</div></div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th data-i18n="thToken">Token</th>
+            <th data-i18n="thFarmer">Farmer</th>
+            <th data-i18n="thCrop">Crop</th>
+            <th data-i18n="thSlot">Slot</th>
+            <th data-i18n="thStatus">Status</th>
+            <th data-i18n="thAction">Action</th>
+          </tr>
+        </thead>
+        <tbody id="adminTableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="admin-footer">
+      <button class="btn btn-danger" onclick="clearAllData()">🗑️ <span data-i18n="clearBtn">Clear All Data</span></button>
+    </div>
+  </div>
+
+  </div><!-- /page-content -->
+
+  <!-- Modal for quality + weighment -->
+  <div class="modal-overlay" id="qualityModal">
+    <div class="modal-card">
+      <h3 data-i18n="modalTitle">Enter Quality &amp; Weighment</h3>
+      <div class="modal-sub" id="modalFarmerName">Farmer</div>
+
+      <label for="moistureInput" data-i18n="modalMoistureLabel">Moisture (%)</label>
+      <input type="text" id="moistureInput" dir="ltr" data-i18n-ph="modalMoisturePh" placeholder="e.g. 11">
+
+      <label for="qtyInput" data-i18n="modalQtyLabel">Quantity (Quintals)</label>
+      <input type="text" id="qtyInput" dir="ltr" data-i18n-ph="modalQtyPh" placeholder="e.g. 42">
+
+      <label for="gradeSelect" data-i18n="modalGradeLabel">Grade</label>
+      <select id="gradeSelect">
+        <option value="A">A</option>
+        <option value="B">B</option>
+        <option value="C">C</option>
+      </select>
+
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="closeQualityForm()" data-i18n="modalCancel">Cancel</button>
+        <button class="btn" onclick="submitQuality()" data-i18n="modalSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ============================================================
+   PHASE 1: Firebase Authentication + Admin/Operator Authorization
+   Everything below this block, and the farmer-side code further
+   down, is unchanged from the audited baseline.
+   ============================================================ */
+
+// Paste your Firebase Web App config here (Firebase Console > Project
+// Settings > General > Your apps). These values are safe to keep in
+// client-side code - they are not secrets. Real protection comes from
+// Firestore Security Rules, not from hiding these values.
+const firebaseConfig = {
+  apiKey: "AIzaSyAy45CKNjZ0zNGhpS6Q65SYYV1RtAfVs_E",
+  authDomain: "kisan-seva-f46f0.firebaseapp.com",
+  projectId: "kisan-seva-f46f0",
+  storageBucket: "kisan-seva-f46f0.firebasestorage.app",
+  messagingSenderId: "290928191387",
+  appId: "1:290928191387:web:75c80814b2098bf60ee33e"
+};
+
+let firebaseReady = false;
+let firebaseInitError = null;
+
+// The Firebase SDK must be available before initialization. This guard
+// prevents a raw "ReferenceError: firebase is not defined" from breaking
+// the rest of the prototype when the preview/browser blocks the CDN.
+try{
+  if(typeof window.firebase === 'undefined'){
+    throw new Error('Firebase SDK did not load. Check internet/CDN access and make sure the Firebase SDK scripts are loaded before this code.');
+  }
+
+  const hasPlaceholder = Object.keys(firebaseConfig).some(function(key){
+    return typeof firebaseConfig[key] === 'string' && firebaseConfig[key].indexOf('YOUR_') !== -1;
+  });
+
+  if(hasPlaceholder){
+    throw new Error('Firebase Web App configuration is still using placeholders. Paste the real values from Firebase Console > Project Settings > Your apps.');
+  }
+
+  window.firebase.initializeApp(firebaseConfig);
+  firebaseReady = true;
+}catch(e){
+  firebaseInitError = e;
+  console.error('Firebase initialization unavailable:', e);
+}
+
+const auth = firebaseReady ? window.firebase.auth() : null;
+const db = firebaseReady ? window.firebase.firestore() : null;
+
+let currentAdminUser = null;   // Firebase user object once logged in
+let currentAdminRole = null;   // 'admin' or 'operator', read from /admins/{uid}
+
+function adminLogin(){
+  const errorBox = document.getElementById('adminLoginError');
+  errorBox.style.display = 'none';
+
+  if(!firebaseReady){
+    errorBox.textContent = firebaseInitError ? firebaseInitError.message : t('adminAuthError');
+    errorBox.style.display = 'block';
+    return;
+  }
+
+  const email = document.getElementById('adminEmailInput').value.trim();
+  const password = document.getElementById('adminPasswordInput').value;
+
+  auth.signInWithEmailAndPassword(email, password)
+    .then(function(result){
+      currentAdminUser = result.user;
+      return db.collection('admins').doc(currentAdminUser.uid).get();
+    })
+    .then(function(doc){
+      if(!doc.exists){ denyAdminAccess(t('adminUnauthorized')); return; }
+      const role = doc.data().role;
+      if(role !== 'admin' && role !== 'operator'){ denyAdminAccess(t('adminInvalidRole')); return; }
+      currentAdminRole = role;
+      switchView('admin');
+      subscribeAdminBookings();
+    })
+    .catch(function(){
+      showAdminLoginError(t('adminAuthError'));
+    });
+}
+
+function denyAdminAccess(message){
+  showAdminLoginError(message);
+  if(auth) auth.signOut();
+  currentAdminUser = null;
+  currentAdminRole = null;
+}
+
+function showAdminLoginError(message){
+  const errorBox = document.getElementById('adminLoginError');
+  errorBox.textContent = message;
+  errorBox.style.display = 'block';
+}
+
+function updateAdminRoleLabel(){
+  const label = document.getElementById('adminRoleLabel');
+  if(!label) return;
+  label.textContent = currentAdminRole === 'admin' ? t('loggedInAsAdmin') : t('loggedInAsOperator');
+}
+
+function adminLogout(){
+  if(auth){
+    auth.signOut().then(function(){
+      currentAdminUser = null;
+      currentAdminRole = null;
+      if(firestoreUnsubBookings){ firestoreUnsubBookings(); firestoreUnsubBookings = null; }
+      switchView('farmer');
+      refreshFarmerFromFirestore();
+    });
+  } else {
+    currentAdminUser = null;
+    currentAdminRole = null;
+    if(firestoreUnsubBookings){ firestoreUnsubBookings(); firestoreUnsubBookings = null; }
+    switchView('farmer');
+    refreshFarmerFromFirestore();
+  }
+}
+
+// Keeps the session recognized across a page reload. Firebase remembers
+// who is signed in; we still re-check the role in Firestore every time
+// rather than trusting anything saved locally.
+if(firebaseReady){
+  auth.onAuthStateChanged(function(user){
+    if(user){
+      currentAdminUser = user;
+      db.collection('admins').doc(user.uid).get().then(function(doc){
+        if(doc.exists && (doc.data().role === 'admin' || doc.data().role === 'operator')){
+          currentAdminRole = doc.data().role;
+          subscribeAdminBookings();
+        } else {
+          currentAdminUser = null;
+          currentAdminRole = null;
+          auth.signOut();
+        }
+      });
+    } else {
+      currentAdminUser = null;
+      currentAdminRole = null;
+    }
+  });
+}
+
+
+/* ============================================================
+   PHASE 2: Firestore data layer for farmer + booking data
+   NOTE: Farmer UI still uses the simulated OTP from Phase 1.
+   Until real Phone Auth is enabled, Firestore migration is gated
+   behind a Firebase-authenticated farmer session. LocalStorage
+   remains a safe fallback so the prototype still works offline.
+   ============================================================ */
+let firestoreSyncReady = false;
+let firestoreSyncError = null;
+let firestoreUnsubBookings = null;
+let firestoreFarmerId = null;
+let firestoreUsingLocalFallback = false;
+
+function isAdminSession(){
+  return !!(currentAdminUser && currentAdminRole);
+}
+
+function firebaseDataReady(){
+  return !!(firebaseReady && db);
+}
+
+function safeFirestoreData(obj){
+  const copy = Object.assign({}, obj);
+  delete copy.self;
+  return copy;
+}
+
+function getFarmerDocId(){
+  // Phase 2 bridge: use the Firebase Auth UID when a farmer-authenticated
+  // session exists. Real Phone Auth will later provide the permanent farmer UID.
+  return firestoreFarmerId || (auth && auth.currentUser ? auth.currentUser.uid : null);
+}
+
+function ensureFarmerFirebaseAuth(){
+  if(!firebaseDataReady()) return Promise.resolve(null);
+  if(isAdminSession()) return Promise.resolve(null);
+  if(auth.currentUser) return Promise.resolve(auth.currentUser);
+  // Phase 2 bridge only. This keeps Firestore access authenticated while the
+  // visible farmer OTP remains simulated. Enable Anonymous sign-in in Firebase.
+  return auth.signInAnonymously().then(function(result){
+    firestoreFarmerId = result.user.uid;
+    firestoreSyncReady = true;
+    firestoreUsingLocalFallback = false;
+    return result.user;
+  }).catch(function(error){
+    firestoreSyncError = error;
+    firestoreUsingLocalFallback = true;
+    console.warn('Farmer Firestore auth unavailable; using localStorage fallback.', error);
+    return null;
+  });
+}
+
+function syncFarmerToFirestore(){
+  const uid = getFarmerDocId();
+  if(!firebaseDataReady() || !uid || !farmer || isAdminSession()) return Promise.resolve();
+  return db.collection('farmers').doc(uid).set({
+    name: farmer.name || '',
+    phone: farmer.phone || '',
+    village: farmer.village || '',
+    crop: farmer.crop || '',
+    qty: farmer.qty || '',
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, {merge:true}).then(function(){
+    firestoreSyncReady = true;
+  });
+}
+
+function syncBookingToFirestore(booking){
+  if(!firebaseDataReady() || !booking) return Promise.resolve();
+  const data = safeFirestoreData(booking);
+  const uid = getFarmerDocId();
+  if(!isAdminSession()){
+    if(!uid) return Promise.resolve();
+    data.farmerUid = uid;
+  } else if(booking.farmerUid){
+    data.farmerUid = booking.farmerUid;
+  }
+  data.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+  if(!data.createdAt) data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+  return db.collection('bookings').doc(String(booking.id)).set(data, {merge:true});
+}
+
+function syncLocalDataToFirestore(){
+  if(!farmer || !firebaseDataReady() || isAdminSession()) return Promise.resolve();
+  return ensureFarmerFirebaseAuth().then(function(){
+    if(!getFarmerDocId()) return;
+    return syncFarmerToFirestore().then(function(){
+      const mine = bookings.filter(function(b){ return b.self || b.farmerUid === getFarmerDocId(); });
+      return Promise.all(mine.map(syncBookingToFirestore));
+    });
+  });
+}
+
+function loadFarmerFromFirestore(){
+  const uid = getFarmerDocId();
+  if(!firebaseDataReady() || !uid || isAdminSession()) return Promise.resolve(false);
+  return db.collection('farmers').doc(uid).get().then(function(doc){
+    if(!doc.exists) return false;
+    const data = doc.data() || {};
+    farmer = {
+      name:data.name || '', phone:data.phone || '', village:data.village || '',
+      crop:data.crop || '', qty:data.qty || ''
+    };
+    saveLocalDataOnly();
+    return true;
+  });
+}
+
+function loadMyBookingsFromFirestore(){
+  const uid = getFarmerDocId();
+  if(!firebaseDataReady() || !uid || isAdminSession()) return Promise.resolve(false);
+  return db.collection('bookings').where('farmerUid','==',uid).get().then(function(snapshot){
+    const remote = [];
+    snapshot.forEach(function(doc){
+      const data = doc.data() || {};
+      data.id = data.id || doc.id;
+      data.self = true;
+      remote.push(data);
+    });
+    if(remote.length){
+      bookings = bookings.filter(function(b){ return !b.self; }).concat(remote);
+      currentBookingId = remote[0].id;
+      saveLocalDataOnly();
+      return true;
+    }
+    return false;
+  });
+}
+
+function refreshFarmerFromFirestore(){
+  if(!firebaseDataReady() || isAdminSession()) return Promise.resolve();
+  const refreshVersion = window.__authFlowVersion || 0;
+  return ensureFarmerFirebaseAuth().then(function(user){
+    if(!user) return;
+    return Promise.all([loadFarmerFromFirestore(), loadMyBookingsFromFirestore()]).then(function(){
+      // If the user started an OTP attempt while this async refresh was running,
+      // do not let the old Firebase farmer overwrite the new login flow.
+      if((window.__authFlowVersion || 0) !== refreshVersion || window.__otpPhone){
+        return;
+      }
+      if(farmer){
+        document.getElementById('regPhoneDisplay').value = farmer.phone || '';
+        loginPhone = farmer.phone || loginPhone;
+        document.getElementById('dashHello').textContent = t('welcome',{name:farmer.name}) + ' 👋';
+      }
+      updateQueueUI();
+      renderStatusScreen();
+      renderAdminTable();
+    });
+  }).catch(function(error){
+    firestoreSyncError = error;
+    console.warn('Firestore farmer refresh failed; keeping local data.', error);
+  });
+}
+
+function subscribeAdminBookings(){
+  if(!firebaseDataReady() || !isAdminSession()) return;
+  if(firestoreUnsubBookings) firestoreUnsubBookings();
+  firestoreUnsubBookings = db.collection('bookings').onSnapshot(function(snapshot){
+    const remote = [];
+    snapshot.forEach(function(doc){
+      const data = doc.data() || {};
+      data.id = data.id || doc.id;
+      data.self = !!(currentBookingId && String(data.id) === String(currentBookingId));
+      remote.push(data);
+    });
+    // Keep local seeded demo rows until real Firestore rows exist; once remote
+    // data exists, it becomes the admin dashboard source for bookings.
+    if(remote.length){
+      bookings = remote;
+      renderAdminTable();
+      if(currentBookingId) {
+        const mine = bookings.find(function(b){ return String(b.id) === String(currentBookingId); });
+        if(mine){ mine.self = true; updateQueueUI(); renderStatusScreen(); }
+      }
+    } else {
+      renderAdminTable();
+    }
+  }, function(error){
+    console.warn('Admin Firestore booking listener failed:', error);
+  });
+}
+
+function saveLocalDataOnly(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({ farmer, bookings, currentBookingId })); }
+  catch(e){ console.log('local save failed', e); }
+}
+
+
+/* ===================== TRANSLATIONS ===================== */
+const translations = {
+en:{
+brand:"Kisan Seva", tabFarmer:"Farmer View", tabOperator:"Operator View",
+navLogin:"Login", navRegister:"Register", navDashboard:"Dashboard", navCentre:"Centre", navBooking:"Booking", navToken:"Token", navQueue:"Queue", navStatus:"Status",
+loginTitle:"Kisan Seva", loginSub:"Login with your mobile number to sell your crop",
+mobileLabel:"Mobile Number", mobilePh:"Enter 10-digit number", sendOtpBtn:"Send OTP", resendOtpBtn:"Resend OTP",
+otpLabel:"Enter OTP", otpPh:"4-digit OTP", otpHint:"Demo OTP: 1234", loginBtn:"Login",
+phoneError:"Please enter a valid 10-digit mobile number", otpError:"Incorrect OTP, please try again",
+regTitle:"Registration", regSub:"Fill your details to book a procurement slot",
+nameLabel:"Full Name", namePh:"e.g. Ramesh Kumar", mobileLabel2:"Mobile Number",
+villageLabel:"Village / Address", villagePh:"Village, District",
+cropLabel:"Crop Type", cropSelectPh:"Select crop", crop1:"Wheat", crop2:"Rice", crop3:"Maize", crop4:"Sugarcane", crop5:"Other",
+qtyLabel:"Expected Quantity (Quintals)", qtyPh:"e.g. 25", regError:"Please fill all fields", regBtn:"Register",
+dashSub:"What would you like to do today?", cardBookTitle:"Book New Slot", cardTokenTitle:"View My Token", cardPaymentTitle:"Payment Status", cardOperatorTitle:"Operator Panel", welcome:"Welcome, {name}",
+centreTitle:"Select Centre", centreSub:"Choose your nearest procurement centre",
+centre1Name:"State Procurement Centre – Rampur", centre1Meta:"2.3 km away · 45/100 full today",
+centre2Name:"Cooperative Centre – Sonpur", centre2Meta:"5.1 km away · 78/100 full today",
+centre3Name:"Mandi Samiti Centre – Ganjbazar", centre3Meta:"7.8 km away · 20/100 full today", continueBtn:"Continue",
+bookingTitle:"Book Slot", bookingSub:"Choose date and time", dateLabel:"Select Date", slotLabel:"Select Time",
+date1:"26 Aug", date2:"27 Aug", date3:"28 Aug",
+slot1:"9:00 - 10:00", slot2Full:"10:00 - 11:00 (Full)", slot3:"11:00 - 12:00", slot4:"12:00 - 1:00", confirmBtn:"Confirm Booking",
+tokenTitle:"Booking Confirmed", tokenSub:"Your token is ready", tokenNumLabel:"Token Number",
+ticketCentreLabel:"Centre", ticketDateLabel:"Date", ticketTimeLabel:"Time", viewQueueBtn:"View Live Queue",
+queueTitle:"Live Queue", queueSub:"What's happening at the centre right now", nowServingLabel:"Now Serving", yourTokenLabel:"Your Token",
+queueUpdateLabel:"Queue Update", callNextBtn:"Call Next Token", yourTurnBtn:"Your Turn ✓",
+turnMessage:"It's your turn now! Please reach the counter.", estimateTemplate:"Estimated wait: ~{min} min ({count} tokens left)", queueEmpty:"No active booking yet",
+statusTitle:"Procurement & Payment Status", statusSubTemplate:"Token #{token} · {date}",
+stageVerify:"Quality Verification", stageWeigh:"Weighment", stagePayment:"Payment", pendingLabel:"Pending", completedLabel:"Completed",
+moistureTemplate:"Moisture: {m}%", acceptedTemplate:"{q} Qtl accepted, Grade {g}",
+amountQtyLabel:"Quantity Accepted", amountRateLabel:"Rate (per Qtl)", amountTotalLabel:"Total Amount",
+amountPendingNote:"Quantity and amount will appear after quality check", statusEmpty:"No active booking yet",
+adminTitle:"Operator Panel", adminSubTemplate:"Centre: {centre} · Today, {date}",
+statTotalLabel:"Total Bookings", statCheckedInLabel:"Checked In", statPendingLabel:"Payment Pending", statDoneLabel:"Completed",
+thToken:"Token", thFarmer:"Farmer", thCrop:"Crop", thSlot:"Slot", thStatus:"Status", thAction:"Action",
+actionCheckin:"Check In", actionQuality:"Quality & Weighment", actionPayment:"Mark Payment Done", actionCompleted:"✅ Completed",
+statusBooked:"Booked", statusCheckedin:"Checked In", statusPaymentPending:"Payment Pending", statusCompleted:"Completed",
+clearBtn:"Clear All Data", clearConfirm:"Delete all data? This cannot be undone.",
+modalTitle:"Enter Quality & Weighment", modalMoistureLabel:"Moisture (%)", modalMoisturePh:"e.g. 11",
+modalQtyLabel:"Quantity (Quintals)", modalQtyPh:"e.g. 42", modalGradeLabel:"Grade", modalCancel:"Cancel", modalSave:"Save",
+modalFillError:"Please fill both moisture and quantity",
+notifyHeader:"Notification (Simulated)",
+notifyRegisterTemplate:"Dear {name}, your registration is complete. You can now book a slot.",
+notifyBookingTemplate:"Booking confirmed! Token #{token}",
+notifyQualityTemplate:"Dear {name}, quality check & weighment completed.",
+notifyPaymentTemplate:"Dear {name}, your payment has been completed.",
+seedName1:"Suresh Yadav", seedName2:"Geeta Devi", seedName3:"Mohan Singh", seedName4:"Ramesh Kumar", seedName5:"Sita Patel",
+adminLoginTitle:"Admin / Operator Login", adminLoginSub:"For authorized centre staff only. Farmers should use the Login tab above.",
+emailLabel:"Email", emailPh:"you@example.com", passwordLabel:"Password", adminLoginBtn:"Login", logoutBtn:"Logout",
+adminAuthError:"Login failed. Please check your email and password.", adminUnauthorized:"This account is not authorized for Admin/Operator access.",
+adminInvalidRole:"Account role is missing or invalid. Access denied.", loggedInAsAdmin:"Logged in as Admin", loggedInAsOperator:"Logged in as Operator"
+},
+hi:{
+brand:"किसान सेवा", tabFarmer:"किसान व्यू", tabOperator:"ऑपरेटर व्यू",
+navLogin:"लॉगिन", navRegister:"पंजीकरण", navDashboard:"डैशबोर्ड", navCentre:"केंद्र", navBooking:"बुकिंग", navToken:"टोकन", navQueue:"कतार", navStatus:"स्थिति",
+loginTitle:"किसान सेवा", loginSub:"अपनी फसल बेचने के लिए मोबाइल नंबर से लॉगिन करें",
+mobileLabel:"मोबाइल नंबर", mobilePh:"10 अंकों का नंबर डालें", sendOtpBtn:"OTP भेजें", resendOtpBtn:"OTP दोबारा भेजें",
+otpLabel:"OTP डालें", otpPh:"4 अंकों का OTP", otpHint:"डेमो OTP: 1234", loginBtn:"लॉगिन करें",
+phoneError:"कृपया सही 10 अंकों का मोबाइल नंबर डालें", otpError:"गलत OTP, कृपया दोबारा कोशिश करें",
+regTitle:"पंजीकरण", regSub:"स्लॉट बुक करने के लिए अपनी जानकारी भरें",
+nameLabel:"पूरा नाम", namePh:"जैसे रामेश कुमार", mobileLabel2:"मोबाइल नंबर",
+villageLabel:"गांव / पता", villagePh:"गांव, जिला",
+cropLabel:"फसल का प्रकार", cropSelectPh:"फसल चुनें", crop1:"गेहूं", crop2:"धान", crop3:"मक्का", crop4:"गन्ना", crop5:"अन्य",
+qtyLabel:"अनुमानित मात्रा (क्विंटल)", qtyPh:"जैसे 25", regError:"कृपया सभी जानकारी भरें", regBtn:"पंजीकरण करें",
+dashSub:"आज आप क्या करना चाहेंगे?", cardBookTitle:"नया स्लॉट बुक करें", cardTokenTitle:"मेरा टोकन देखें", cardPaymentTitle:"भुगतान स्थिति", cardOperatorTitle:"ऑपरेटर पैनल", welcome:"नमस्ते, {name}",
+centreTitle:"केंद्र चुनें", centreSub:"अपने नज़दीकी खरीद केंद्र को चुनें",
+centre1Name:"राज्य खरीद केंद्र – रामपुर", centre1Meta:"2.3 किमी दूर · आज 45/100 भरा",
+centre2Name:"सहकारी क्रय केंद्र – सोनपुर", centre2Meta:"5.1 किमी दूर · आज 78/100 भरा",
+centre3Name:"मंडी समिति केंद्र – गंजबाजार", centre3Meta:"7.8 किमी दूर · आज 20/100 भरा", continueBtn:"आगे बढ़ें",
+bookingTitle:"स्लॉट बुक करें", bookingSub:"तारीख और समय चुनें", dateLabel:"तारीख चुनें", slotLabel:"समय चुनें",
+date1:"26 अगस्त", date2:"27 अगस्त", date3:"28 अगस्त",
+slot1:"9:00 - 10:00", slot2Full:"10:00 - 11:00 (भरा)", slot3:"11:00 - 12:00", slot4:"12:00 - 1:00", confirmBtn:"बुकिंग कन्फर्म करें",
+tokenTitle:"बुकिंग कन्फर्म हो गई", tokenSub:"आपका टोकन तैयार है", tokenNumLabel:"टोकन नंबर",
+ticketCentreLabel:"केंद्र", ticketDateLabel:"तारीख", ticketTimeLabel:"समय", viewQueueBtn:"लाइव कतार देखें",
+queueTitle:"लाइव कतार", queueSub:"अभी केंद्र पर क्या चल रहा है", nowServingLabel:"अभी सेवा में", yourTokenLabel:"आपका टोकन",
+queueUpdateLabel:"कतार अपडेट", callNextBtn:"अगला टोकन बुलाएं", yourTurnBtn:"आपकी बारी आ गई ✓",
+turnMessage:"अब आपकी बारी है! कृपया काउंटर पर पहुंचें।", estimateTemplate:"अनुमानित प्रतीक्षा: ~{min} मिनट ({count} टोकन बाकी)", queueEmpty:"अभी कोई बुकिंग नहीं है",
+statusTitle:"खरीद व भुगतान स्थिति", statusSubTemplate:"टोकन #{token} · {date}",
+stageVerify:"गुणवत्ता जांच", stageWeigh:"वजन", stagePayment:"भुगतान", pendingLabel:"प्रतीक्षा में", completedLabel:"पूर्ण हुआ",
+moistureTemplate:"नमी: {m}%", acceptedTemplate:"{q} क्विंटल स्वीकार, ग्रेड {g}",
+amountQtyLabel:"मात्रा स्वीकृत", amountRateLabel:"दर (प्रति क्विंटल)", amountTotalLabel:"कुल राशि",
+amountPendingNote:"मात्रा व राशि जांच के बाद दिखेगी", statusEmpty:"अभी कोई बुकिंग नहीं है",
+adminTitle:"ऑपरेटर पैनल", adminSubTemplate:"केंद्र: {centre} · आज, {date}",
+statTotalLabel:"कुल बुकिंग", statCheckedInLabel:"चेक-इन हुए", statPendingLabel:"भुगतान लंबित", statDoneLabel:"पूर्ण",
+thToken:"टोकन", thFarmer:"किसान", thCrop:"फसल", thSlot:"स्लॉट", thStatus:"स्थिति", thAction:"कार्रवाई",
+actionCheckin:"चेक-इन करें", actionQuality:"जांच व वजन", actionPayment:"भुगतान पूर्ण करें", actionCompleted:"✅ पूर्ण",
+statusBooked:"बुक हुआ", statusCheckedin:"चेक-इन हुआ", statusPaymentPending:"भुगतान लंबित", statusCompleted:"पूर्ण",
+clearBtn:"सभी डेटा हटाएं", clearConfirm:"क्या आप सारा डेटा हटाना चाहते हैं? यह वापस नहीं होगा।",
+modalTitle:"जांच और वजन दर्ज करें", modalMoistureLabel:"नमी (%)", modalMoisturePh:"जैसे 11",
+modalQtyLabel:"मात्रा (क्विंटल)", modalQtyPh:"जैसे 42", modalGradeLabel:"ग्रेड", modalCancel:"रद्द करें", modalSave:"सेव करें",
+modalFillError:"कृपया नमी और मात्रा दोनों भरें",
+notifyHeader:"सूचना (सिम्युलेशन)",
+notifyRegisterTemplate:"प्रिय {name}, आपका पंजीकरण सफल रहा। अब स्लॉट बुक करें।",
+notifyBookingTemplate:"बुकिंग कन्फर्म! टोकन #{token}",
+notifyQualityTemplate:"प्रिय {name}, आपकी जांच व वजन पूरा हो गया है।",
+notifyPaymentTemplate:"प्रिय {name}, आपका भुगतान पूरा हो गया है।",
+seedName1:"सुरेश यादव", seedName2:"गीता देवी", seedName3:"मोहन सिंह", seedName4:"रामेश कुमार", seedName5:"सीता पटेल",
+adminLoginTitle:"एडमिन / ऑपरेटर लॉगिन", adminLoginSub:"यह सिर्फ अधिकृत केंद्र स्टाफ के लिए है। किसान ऊपर वाले 'लॉगिन' टैब का उपयोग करें।",
+emailLabel:"ईमेल", emailPh:"you@example.com", passwordLabel:"पासवर्ड", adminLoginBtn:"लॉगिन करें", logoutBtn:"लॉगआउट",
+adminAuthError:"लॉगिन असफल रहा। कृपया अपना ईमेल और पासवर्ड जांचें।", adminUnauthorized:"यह खाता एडमिन/ऑपरेटर एक्सेस के लिए अधिकृत नहीं है।",
+adminInvalidRole:"खाते की भूमिका मौजूद नहीं है या अमान्य है। एक्सेस अस्वीकृत।", loggedInAsAdmin:"एडमिन के रूप में लॉगिन है", loggedInAsOperator:"ऑपरेटर के रूप में लॉगिन है"
+},
+ur:{
+brand:"کسان سیوا", tabFarmer:"کسان", tabOperator:"آپریٹر",
+navLogin:"لاگ اِن", navRegister:"رجسٹریشن", navDashboard:"ڈیش بورڈ", navCentre:"مرکز", navBooking:"بکنگ", navToken:"ٹوکن", navQueue:"قطار", navStatus:"حیثیت",
+loginTitle:"کسان سیوا", loginSub:"اپنی فصل بیچنے کے لیے موبائل نمبر سے لاگ اِن کریں",
+mobileLabel:"موبائل نمبر", mobilePh:"10 ہندسوں کا نمبر درج کریں", sendOtpBtn:"او ٹی پی بھیجیں", resendOtpBtn:"او ٹی پی دوبارہ بھیجیں",
+otpLabel:"او ٹی پی درج کریں", otpPh:"4 ہندسوں کا او ٹی پی", otpHint:"ڈیمو او ٹی پی: 1234", loginBtn:"لاگ اِن کریں",
+phoneError:"براہ کرم درست 10 ہندسوں کا موبائل نمبر درج کریں", otpError:"غلط او ٹی پی، براہ کرم دوبارہ کوشش کریں",
+regTitle:"رجسٹریشن", regSub:"سلاٹ بک کرنے کے لیے اپنی تفصیلات درج کریں",
+nameLabel:"پورا نام", namePh:"مثلاً رمیش کمار", mobileLabel2:"موبائل نمبر",
+villageLabel:"گاؤں / پتہ", villagePh:"گاؤں، ضلع",
+cropLabel:"فصل کی قسم", cropSelectPh:"فصل منتخب کریں", crop1:"گندم", crop2:"چاول", crop3:"مکئی", crop4:"گنا", crop5:"دیگر",
+qtyLabel:"متوقع مقدار (کوئنٹل)", qtyPh:"مثلاً 25", regError:"براہ کرم تمام معلومات درج کریں", regBtn:"رجسٹر کریں",
+dashSub:"آج آپ کیا کرنا چاہیں گے؟", cardBookTitle:"نیا سلاٹ بک کریں", cardTokenTitle:"میرا ٹوکن دیکھیں", cardPaymentTitle:"ادائیگی کی حیثیت", cardOperatorTitle:"آپریٹر پینل", welcome:"خوش آمدید، {name}",
+centreTitle:"مرکز منتخب کریں", centreSub:"اپنا قریب ترین خریداری مرکز منتخب کریں",
+centre1Name:"ریاستی خریداری مرکز – رام پور", centre1Meta:"2.3 کلومیٹر دور · آج 45/100 بھرا",
+centre2Name:"کوآپریٹو مرکز – سون پور", centre2Meta:"5.1 کلومیٹر دور · آج 78/100 بھرا",
+centre3Name:"منڈی سمیتی مرکز – گنج بازار", centre3Meta:"7.8 کلومیٹر دور · آج 20/100 بھرا", continueBtn:"آگے بڑھیں",
+bookingTitle:"سلاٹ بک کریں", bookingSub:"تاریخ اور وقت منتخب کریں", dateLabel:"تاریخ منتخب کریں", slotLabel:"وقت منتخب کریں",
+date1:"26 اگست", date2:"27 اگست", date3:"28 اگست",
+slot1:"9:00 - 10:00", slot2Full:"10:00 - 11:00 (بھرا ہوا)", slot3:"11:00 - 12:00", slot4:"12:00 - 1:00", confirmBtn:"بکنگ کی تصدیق کریں",
+tokenTitle:"بکنگ کی تصدیق ہوگئی", tokenSub:"آپ کا ٹوکن تیار ہے", tokenNumLabel:"ٹوکن نمبر",
+ticketCentreLabel:"مرکز", ticketDateLabel:"تاریخ", ticketTimeLabel:"وقت", viewQueueBtn:"لائیو قطار دیکھیں",
+queueTitle:"لائیو قطار", queueSub:"اس وقت مرکز پر کیا ہو رہا ہے", nowServingLabel:"اس وقت خدمت میں", yourTokenLabel:"آپ کا ٹوکن",
+queueUpdateLabel:"قطار اپڈیٹ", callNextBtn:"اگلا ٹوکن بلائیں", yourTurnBtn:"آپ کی باری آگئی ✓",
+turnMessage:"اب آپ کی باری ہے! براہ کرم کاؤنٹر پر پہنچیں۔", estimateTemplate:"متوقع انتظار: ~{min} منٹ ({count} ٹوکن باقی)", queueEmpty:"ابھی کوئی بکنگ نہیں ہے",
+statusTitle:"خریداری و ادائیگی کی حیثیت", statusSubTemplate:"ٹوکن #{token} · {date}",
+stageVerify:"معیار کی جانچ", stageWeigh:"وزن", stagePayment:"ادائیگی", pendingLabel:"زیرِ التوا", completedLabel:"مکمل",
+moistureTemplate:"نمی: {m}%", acceptedTemplate:"{q} کوئنٹل قبول، گریڈ {g}",
+amountQtyLabel:"قبول شدہ مقدار", amountRateLabel:"شرح (فی کوئنٹل)", amountTotalLabel:"کل رقم",
+amountPendingNote:"مقدار اور رقم معیار کی جانچ کے بعد ظاہر ہوگی", statusEmpty:"ابھی کوئی بکنگ نہیں ہے",
+adminTitle:"آپریٹر پینل", adminSubTemplate:"مرکز: {centre} · آج، {date}",
+statTotalLabel:"کل بکنگز", statCheckedInLabel:"چیک اِن ہوئے", statPendingLabel:"ادائیگی زیرِ التوا", statDoneLabel:"مکمل",
+thToken:"ٹوکن", thFarmer:"کسان", thCrop:"فصل", thSlot:"سلاٹ", thStatus:"حیثیت", thAction:"کارروائی",
+actionCheckin:"چیک اِن کریں", actionQuality:"جانچ و وزن", actionPayment:"ادائیگی مکمل کریں", actionCompleted:"✅ مکمل",
+statusBooked:"بک ہوا", statusCheckedin:"چیک اِن ہوا", statusPaymentPending:"ادائیگی زیرِ التوا", statusCompleted:"مکمل",
+clearBtn:"تمام ڈیٹا صاف کریں", clearConfirm:"کیا آپ تمام ڈیٹا حذف کرنا چاہتے ہیں؟ یہ واپس نہیں ہوگا۔",
+modalTitle:"جانچ اور وزن درج کریں", modalMoistureLabel:"نمی (%)", modalMoisturePh:"مثلاً 11",
+modalQtyLabel:"مقدار (کوئنٹل)", modalQtyPh:"مثلاً 42", modalGradeLabel:"گریڈ", modalCancel:"منسوخ کریں", modalSave:"محفوظ کریں",
+modalFillError:"براہ کرم نمی اور مقدار دونوں درج کریں",
+notifyHeader:"اطلاع (نقلی مظاہرہ)",
+notifyRegisterTemplate:"عزیز {name}, آپ کی رجسٹریشن مکمل ہوگئی۔ اب سلاٹ بک کریں۔",
+notifyBookingTemplate:"بکنگ کی تصدیق ہوگئی! ٹوکن #{token}",
+notifyQualityTemplate:"عزیز {name}, آپ کی جانچ و وزن مکمل ہوگئی۔",
+notifyPaymentTemplate:"عزیز {name}, آپ کی ادائیگی مکمل ہوگئی۔",
+seedName1:"سریش یادو", seedName2:"گیتا دیوی", seedName3:"موہن سنگھ", seedName4:"رمیش کمار", seedName5:"سیتا پٹیل",
+adminLoginTitle:"ایڈمن / آپریٹر لاگ اِن", adminLoginSub:"یہ صرف مجاز مرکز عملے کے لیے ہے۔ کسان اوپر والے 'لاگ اِن' ٹیب کا استعمال کریں۔",
+emailLabel:"ای میل", emailPh:"you@example.com", passwordLabel:"پاس ورڈ", adminLoginBtn:"لاگ اِن کریں", logoutBtn:"لاگ آؤٹ",
+adminAuthError:"لاگ اِن ناکام ہوگیا۔ براہ کرم اپنا ای میل اور پاس ورڈ چیک کریں۔", adminUnauthorized:"یہ اکاؤنٹ ایڈمن/آپریٹر رسائی کے لیے مجاز نہیں ہے۔",
+adminInvalidRole:"اکاؤنٹ کا کردار موجود نہیں یا غلط ہے۔ رسائی مسترد۔", loggedInAsAdmin:"ایڈمن کے طور پر لاگ اِن ہیں", loggedInAsOperator:"آپریٹر کے طور پر لاگ اِن ہیں"
+},
+mr:{
+brand:"किसान सेवा", tabFarmer:"शेतकरी दृश्य", tabOperator:"ऑपरेटर दृश्य",
+navLogin:"लॉगिन", navRegister:"नोंदणी", navDashboard:"डॅशबोर्ड", navCentre:"केंद्र", navBooking:"बुकिंग", navToken:"टोकन", navQueue:"रांग", navStatus:"स्थिती",
+loginTitle:"किसान सेवा", loginSub:"आपले पीक विकण्यासाठी मोबाईल नंबरने लॉगिन करा",
+mobileLabel:"मोबाईल नंबर", mobilePh:"10 अंकी नंबर टाका", sendOtpBtn:"OTP पाठवा", resendOtpBtn:"OTP पुन्हा पाठवा",
+otpLabel:"OTP टाका", otpPh:"4 अंकी OTP", otpHint:"डेमो OTP: 1234", loginBtn:"लॉगिन करा",
+phoneError:"कृपया योग्य 10 अंकी मोबाईल नंबर टाका", otpError:"चुकीचा OTP, कृपया पुन्हा प्रयत्न करा",
+regTitle:"नोंदणी", regSub:"स्लॉट बुक करण्यासाठी आपली माहिती भरा",
+nameLabel:"पूर्ण नाव", namePh:"उदा. रमेश कुमार", mobileLabel2:"मोबाईल नंबर",
+villageLabel:"गाव / पत्ता", villagePh:"गाव, जिल्हा",
+cropLabel:"पिकाचा प्रकार", cropSelectPh:"पीक निवडा", crop1:"गहू", crop2:"तांदूळ", crop3:"मका", crop4:"ऊस", crop5:"इतर",
+qtyLabel:"अपेक्षित प्रमाण (क्विंटल)", qtyPh:"उदा. 25", regError:"कृपया सर्व माहिती भरा", regBtn:"नोंदणी करा",
+dashSub:"आज तुम्हाला काय करायचे आहे?", cardBookTitle:"नवीन स्लॉट बुक करा", cardTokenTitle:"माझा टोकन पहा", cardPaymentTitle:"पेमेंट स्थिती", cardOperatorTitle:"ऑपरेटर पॅनेल", welcome:"नमस्कार, {name}",
+centreTitle:"केंद्र निवडा", centreSub:"तुमचे जवळचे खरेदी केंद्र निवडा",
+centre1Name:"राज्य खरेदी केंद्र – रामपूर", centre1Meta:"2.3 किमी दूर · आज 45/100 भरले",
+centre2Name:"सहकारी खरेदी केंद्र – सोनपूर", centre2Meta:"5.1 किमी दूर · आज 78/100 भरले",
+centre3Name:"मंडी समिती केंद्र – गंजबाजार", centre3Meta:"7.8 किमी दूर · आज 20/100 भरले", continueBtn:"पुढे जा",
+bookingTitle:"स्लॉट बुक करा", bookingSub:"तारीख आणि वेळ निवडा", dateLabel:"तारीख निवडा", slotLabel:"वेळ निवडा",
+date1:"26 ऑगस्ट", date2:"27 ऑगस्ट", date3:"28 ऑगस्ट",
+slot1:"9:00 - 10:00", slot2Full:"10:00 - 11:00 (भरले)", slot3:"11:00 - 12:00", slot4:"12:00 - 1:00", confirmBtn:"बुकिंग निश्चित करा",
+tokenTitle:"बुकिंग निश्चित झाली", tokenSub:"तुमचा टोकन तयार आहे", tokenNumLabel:"टोकन क्रमांक",
+ticketCentreLabel:"केंद्र", ticketDateLabel:"तारीख", ticketTimeLabel:"वेळ", viewQueueBtn:"लाइव्ह रांग पहा",
+queueTitle:"लाइव्ह रांग", queueSub:"सध्या केंद्रावर काय चालू आहे", nowServingLabel:"सध्या सेवा सुरू", yourTokenLabel:"तुमचा टोकन",
+queueUpdateLabel:"रांग अपडेट", callNextBtn:"पुढील टोकन बोलवा", yourTurnBtn:"तुमची पाळी आली ✓",
+turnMessage:"आता तुमची पाळी आहे! कृपया काउंटरवर पोहोचा.", estimateTemplate:"अंदाजे प्रतीक्षा: ~{min} मिनिटे ({count} टोकन बाकी)", queueEmpty:"सध्या कोणतीही बुकिंग नाही",
+statusTitle:"खरेदी व पेमेंट स्थिती", statusSubTemplate:"टोकन #{token} · {date}",
+stageVerify:"गुणवत्ता तपासणी", stageWeigh:"वजन", stagePayment:"पेमेंट", pendingLabel:"प्रलंबित", completedLabel:"पूर्ण झाले",
+moistureTemplate:"ओलावा: {m}%", acceptedTemplate:"{q} क्विंटल स्वीकारले, ग्रेड {g}",
+amountQtyLabel:"स्वीकृत प्रमाण", amountRateLabel:"दर (प्रति क्विंटल)", amountTotalLabel:"एकूण रक्कम",
+amountPendingNote:"प्रमाण व रक्कम तपासणीनंतर दिसेल", statusEmpty:"सध्या कोणतीही बुकिंग नाही",
+adminTitle:"ऑपरेटर पॅनेल", adminSubTemplate:"केंद्र: {centre} · आज, {date}",
+statTotalLabel:"एकूण बुकिंग", statCheckedInLabel:"चेक-इन झाले", statPendingLabel:"पेमेंट प्रलंबित", statDoneLabel:"पूर्ण",
+thToken:"टोकन", thFarmer:"शेतकरी", thCrop:"पीक", thSlot:"स्लॉट", thStatus:"स्थिती", thAction:"कृती",
+actionCheckin:"चेक-इन करा", actionQuality:"तपासणी व वजन", actionPayment:"पेमेंट पूर्ण करा", actionCompleted:"✅ पूर्ण",
+statusBooked:"बुक झाले", statusCheckedin:"चेक-इन झाले", statusPaymentPending:"पेमेंट प्रलंबित", statusCompleted:"पूर्ण",
+clearBtn:"सर्व डेटा हटवा", clearConfirm:"तुम्हाला सर्व डेटा हटवायचा आहे का? हे परत करता येणार नाही.",
+modalTitle:"तपासणी आणि वजन नोंदवा", modalMoistureLabel:"ओलावा (%)", modalMoisturePh:"उदा. 11",
+modalQtyLabel:"प्रमाण (क्विंटल)", modalQtyPh:"उदा. 42", modalGradeLabel:"ग्रेड", modalCancel:"रद्द करा", modalSave:"जतन करा",
+modalFillError:"कृपया ओलावा आणि प्रमाण दोन्ही भरा",
+notifyHeader:"सूचना (सिम्युलेशन)",
+notifyRegisterTemplate:"प्रिय {name}, तुमची नोंदणी पूर्ण झाली आहे. आता स्लॉट बुक करा.",
+notifyBookingTemplate:"बुकिंग निश्चित! टोकन #{token}",
+notifyQualityTemplate:"प्रिय {name}, तुमची तपासणी व वजन पूर्ण झाले आहे.",
+notifyPaymentTemplate:"प्रिय {name}, तुमचे पेमेंट पूर्ण झाले आहे.",
+seedName1:"सुरेश यादव", seedName2:"गीता देवी", seedName3:"मोहन सिंह", seedName4:"रमेश कुमार", seedName5:"सीता पाटील",
+adminLoginTitle:"अ‍ॅडमिन / ऑपरेटर लॉगिन", adminLoginSub:"हे फक्त अधिकृत केंद्र कर्मचाऱ्यांसाठी आहे. शेतकऱ्यांनी वरील 'लॉगिन' टॅब वापरा.",
+emailLabel:"ईमेल", emailPh:"you@example.com", passwordLabel:"पासवर्ड", adminLoginBtn:"लॉगिन करा", logoutBtn:"लॉगआउट",
+adminAuthError:"लॉगिन अयशस्वी झाले. कृपया तुमचा ईमेल आणि पासवर्ड तपासा.", adminUnauthorized:"हे खाते अ‍ॅडमिन/ऑपरेटर प्रवेशासाठी अधिकृत नाही.",
+adminInvalidRole:"खात्याची भूमिका गहाळ किंवा अवैध आहे. प्रवेश नाकारला.", loggedInAsAdmin:"अ‍ॅडमिन म्हणून लॉगिन आहे", loggedInAsOperator:"ऑपरेटर म्हणून लॉगिन आहे"
+},
+bn:{
+brand:"কিষান সেবা", tabFarmer:"কৃষক ভিউ", tabOperator:"অপারেটর ভিউ",
+navLogin:"লগইন", navRegister:"নিবন্ধন", navDashboard:"ড্যাশবোর্ড", navCentre:"কেন্দ্র", navBooking:"বুকিং", navToken:"টোকেন", navQueue:"সারি", navStatus:"অবস্থা",
+loginTitle:"কিষান সেবা", loginSub:"আপনার ফসল বিক্রি করতে মোবাইল নম্বর দিয়ে লগইন করুন",
+mobileLabel:"মোবাইল নম্বর", mobilePh:"১০ সংখ্যার নম্বর দিন", sendOtpBtn:"OTP পাঠান", resendOtpBtn:"OTP আবার পাঠান",
+otpLabel:"OTP দিন", otpPh:"৪ সংখ্যার OTP", otpHint:"ডেমো OTP: 1234", loginBtn:"লগইন করুন",
+phoneError:"অনুগ্রহ করে সঠিক ১০ সংখ্যার মোবাইল নম্বর দিন", otpError:"ভুল OTP, আবার চেষ্টা করুন",
+regTitle:"নিবন্ধন", regSub:"স্লট বুক করতে আপনার তথ্য পূরণ করুন",
+nameLabel:"পুরো নাম", namePh:"যেমন রমেশ কুমার", mobileLabel2:"মোবাইল নম্বর",
+villageLabel:"গ্রাম / ঠিকানা", villagePh:"গ্রাম, জেলা",
+cropLabel:"ফসলের ধরন", cropSelectPh:"ফসল নির্বাচন করুন", crop1:"গম", crop2:"ধান", crop3:"ভুট্টা", crop4:"আখ", crop5:"অন্যান্য",
+qtyLabel:"আনুমানিক পরিমাণ (কুইন্টাল)", qtyPh:"যেমন ২৫", regError:"অনুগ্রহ করে সব তথ্য পূরণ করুন", regBtn:"নিবন্ধন করুন",
+dashSub:"আজ আপনি কী করতে চান?", cardBookTitle:"নতুন স্লট বুক করুন", cardTokenTitle:"আমার টোকেন দেখুন", cardPaymentTitle:"পেমেন্ট অবস্থা", cardOperatorTitle:"অপারেটর প্যানেল", welcome:"স্বাগতম, {name}",
+centreTitle:"কেন্দ্র নির্বাচন করুন", centreSub:"আপনার নিকটতম ক্রয় কেন্দ্র নির্বাচন করুন",
+centre1Name:"রাজ্য ক্রয় কেন্দ্র – রামপুর", centre1Meta:"২.৩ কিমি দূরে · আজ ৪৫/১০০ পূর্ণ",
+centre2Name:"সমবায় কেন্দ্র – সোনপুর", centre2Meta:"৫.১ কিমি দূরে · আজ ৭৮/১০০ পূর্ণ",
+centre3Name:"মান্ডি সমিতি কেন্দ্র – গঞ্জবাজার", centre3Meta:"৭.৮ কিমি দূরে · আজ ২০/১০০ পূর্ণ", continueBtn:"এগিয়ে যান",
+bookingTitle:"স্লট বুক করুন", bookingSub:"তারিখ ও সময় নির্বাচন করুন", dateLabel:"তারিখ নির্বাচন করুন", slotLabel:"সময় নির্বাচন করুন",
+date1:"২৬ আগস্ট", date2:"২৭ আগস্ট", date3:"২৮ আগস্ট",
+slot1:"9:00 - 10:00", slot2Full:"10:00 - 11:00 (পূর্ণ)", slot3:"11:00 - 12:00", slot4:"12:00 - 1:00", confirmBtn:"বুকিং নিশ্চিত করুন",
+tokenTitle:"বুকিং নিশ্চিত হয়েছে", tokenSub:"আপনার টোকেন প্রস্তুত", tokenNumLabel:"টোকেন নম্বর",
+ticketCentreLabel:"কেন্দ্র", ticketDateLabel:"তারিখ", ticketTimeLabel:"সময়", viewQueueBtn:"লাইভ সারি দেখুন",
+queueTitle:"লাইভ সারি", queueSub:"এই মুহূর্তে কেন্দ্রে কী চলছে", nowServingLabel:"এখন পরিষেবা দেওয়া হচ্ছে", yourTokenLabel:"আপনার টোকেন",
+queueUpdateLabel:"সারি আপডেট", callNextBtn:"পরবর্তী টোকেন ডাকুন", yourTurnBtn:"আপনার পালা এসেছে ✓",
+turnMessage:"এখন আপনার পালা! অনুগ্রহ করে কাউন্টারে পৌঁছান।", estimateTemplate:"আনুমানিক অপেক্ষা: ~{min} মিনিট ({count} টোকেন বাকি)", queueEmpty:"এখনও কোনো সক্রিয় বুকিং নেই",
+statusTitle:"ক্রয় ও পেমেন্ট অবস্থা", statusSubTemplate:"টোকেন #{token} · {date}",
+stageVerify:"গুণমান যাচাই", stageWeigh:"ওজন", stagePayment:"পেমেন্ট", pendingLabel:"মুলতুবি", completedLabel:"সম্পন্ন",
+moistureTemplate:"আর্দ্রতা: {m}%", acceptedTemplate:"{q} কুইন্টাল গৃহীত, গ্রেড {g}",
+amountQtyLabel:"গৃহীত পরিমাণ", amountRateLabel:"হার (প্রতি কুইন্টাল)", amountTotalLabel:"মোট পরিমাণ",
+amountPendingNote:"গুণমান যাচাইয়ের পরে পরিমাণ ও অর্থ দেখা যাবে", statusEmpty:"এখনও কোনো সক্রিয় বুকিং নেই",
+adminTitle:"অপারেটর প্যানেল", adminSubTemplate:"কেন্দ্র: {centre} · আজ, {date}",
+statTotalLabel:"মোট বুকিং", statCheckedInLabel:"চেক-ইন হয়েছে", statPendingLabel:"পেমেন্ট মুলতুবি", statDoneLabel:"সম্পন্ন",
+thToken:"টোকেন", thFarmer:"কৃষক", thCrop:"ফসল", thSlot:"স্লট", thStatus:"অবস্থা", thAction:"পদক্ষেপ",
+actionCheckin:"চেক-ইন করুন", actionQuality:"যাচাই ও ওজন", actionPayment:"পেমেন্ট সম্পন্ন করুন", actionCompleted:"✅ সম্পন্ন",
+statusBooked:"বুক হয়েছে", statusCheckedin:"চেক-ইন হয়েছে", statusPaymentPending:"পেমেন্ট মুলতুবি", statusCompleted:"সম্পন্ন",
+clearBtn:"সব ডেটা মুছুন", clearConfirm:"আপনি কি সব ডেটা মুছে ফেলতে চান? এটি ফেরানো যাবে না।",
+modalTitle:"যাচাই ও ওজন লিখুন", modalMoistureLabel:"আর্দ্রতা (%)", modalMoisturePh:"যেমন ১১",
+modalQtyLabel:"পরিমাণ (কুইন্টাল)", modalQtyPh:"যেমন ৪২", modalGradeLabel:"গ্রেড", modalCancel:"বাতিল করুন", modalSave:"সংরক্ষণ করুন",
+modalFillError:"অনুগ্রহ করে আর্দ্রতা ও পরিমাণ উভয়ই পূরণ করুন",
+notifyHeader:"বিজ্ঞপ্তি (সিমুলেটেড)",
+notifyRegisterTemplate:"প্রিয় {name}, আপনার নিবন্ধন সম্পন্ন হয়েছে। এখন স্লট বুক করুন।",
+notifyBookingTemplate:"বুকিং নিশ্চিত! টোকেন #{token}",
+notifyQualityTemplate:"প্রিয় {name}, আপনার যাচাই ও ওজন সম্পন্ন হয়েছে।",
+notifyPaymentTemplate:"প্রিয় {name}, আপনার পেমেন্ট সম্পন্ন হয়েছে।",
+seedName1:"সুরেশ যাদব", seedName2:"গীতা দেবী", seedName3:"মোহন সিং", seedName4:"রমেশ কুমার", seedName5:"সীতা পাটেল",
+adminLoginTitle:"অ্যাডমিন / অপারেটর লগইন", adminLoginSub:"এটি শুধুমাত্র অনুমোদিত কেন্দ্র কর্মীদের জন্য। কৃষকরা উপরের 'লগইন' ট্যাব ব্যবহার করুন।",
+emailLabel:"ইমেইল", emailPh:"you@example.com", passwordLabel:"পাসওয়ার্ড", adminLoginBtn:"লগইন করুন", logoutBtn:"লগআউট",
+adminAuthError:"লগইন ব্যর্থ হয়েছে। অনুগ্রহ করে আপনার ইমেইল ও পাসওয়ার্ড পরীক্ষা করুন।", adminUnauthorized:"এই অ্যাকাউন্টটি অ্যাডমিন/অপারেটর অ্যাক্সেসের জন্য অনুমোদিত নয়।",
+adminInvalidRole:"অ্যাকাউন্টের ভূমিকা অনুপস্থিত বা অবৈধ। অ্যাক্সেস প্রত্যাখ্যান।", loggedInAsAdmin:"অ্যাডমিন হিসেবে লগইন করা আছে", loggedInAsOperator:"অপারেটর হিসেবে লগইন করা আছে"
+},
+pa:{
+brand:"ਕਿਸਾਨ ਸੇਵਾ", tabFarmer:"ਕਿਸਾਨ ਵਿਊ", tabOperator:"ਆਪਰੇਟਰ ਵਿਊ",
+navLogin:"ਲਾਗਇਨ", navRegister:"ਰਜਿਸਟ੍ਰੇਸ਼ਨ", navDashboard:"ਡੈਸ਼ਬੋਰਡ", navCentre:"ਕੇਂਦਰ", navBooking:"ਬੁਕਿੰਗ", navToken:"ਟੋਕਨ", navQueue:"ਕਤਾਰ", navStatus:"ਸਥਿਤੀ",
+loginTitle:"ਕਿਸਾਨ ਸੇਵਾ", loginSub:"ਆਪਣੀ ਫ਼ਸਲ ਵੇਚਣ ਲਈ ਮੋਬਾਈਲ ਨੰਬਰ ਨਾਲ ਲਾਗਇਨ ਕਰੋ",
+mobileLabel:"ਮੋਬਾਈਲ ਨੰਬਰ", mobilePh:"10 ਅੰਕਾਂ ਦਾ ਨੰਬਰ ਪਾਓ", sendOtpBtn:"OTP ਭੇਜੋ", resendOtpBtn:"OTP ਦੁਬਾਰਾ ਭੇਜੋ",
+otpLabel:"OTP ਪਾਓ", otpPh:"4 ਅੰਕਾਂ ਦਾ OTP", otpHint:"ਡੈਮੋ OTP: 1234", loginBtn:"ਲਾਗਇਨ ਕਰੋ",
+phoneError:"ਕਿਰਪਾ ਕਰਕੇ ਸਹੀ 10 ਅੰਕਾਂ ਦਾ ਮੋਬਾਈਲ ਨੰਬਰ ਪਾਓ", otpError:"ਗਲਤ OTP, ਕਿਰਪਾ ਕਰਕੇ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ",
+regTitle:"ਰਜਿਸਟ੍ਰੇਸ਼ਨ", regSub:"ਸਲਾਟ ਬੁੱਕ ਕਰਨ ਲਈ ਆਪਣੀ ਜਾਣਕਾਰੀ ਭਰੋ",
+nameLabel:"ਪੂਰਾ ਨਾਮ", namePh:"ਜਿਵੇਂ ਰਮੇਸ਼ ਕੁਮਾਰ", mobileLabel2:"ਮੋਬਾਈਲ ਨੰਬਰ",
+villageLabel:"ਪਿੰਡ / ਪਤਾ", villagePh:"ਪਿੰਡ, ਜ਼ਿਲ੍ਹਾ",
+cropLabel:"ਫ਼ਸਲ ਦੀ ਕਿਸਮ", cropSelectPh:"ਫ਼ਸਲ ਚੁਣੋ", crop1:"ਕਣਕ", crop2:"ਚੌਲ", crop3:"ਮੱਕੀ", crop4:"ਗੰਨਾ", crop5:"ਹੋਰ",
+qtyLabel:"ਅਨੁਮਾਨਿਤ ਮਾਤਰਾ (ਕੁਇੰਟਲ)", qtyPh:"ਜਿਵੇਂ 25", regError:"ਕਿਰਪਾ ਕਰਕੇ ਸਾਰੀ ਜਾਣਕਾਰੀ ਭਰੋ", regBtn:"ਰਜਿਸਟਰ ਕਰੋ",
+dashSub:"ਅੱਜ ਤੁਸੀਂ ਕੀ ਕਰਨਾ ਚਾਹੋਗੇ?", cardBookTitle:"ਨਵਾਂ ਸਲਾਟ ਬੁੱਕ ਕਰੋ", cardTokenTitle:"ਮੇਰਾ ਟੋਕਨ ਵੇਖੋ", cardPaymentTitle:"ਭੁਗਤਾਨ ਸਥਿਤੀ", cardOperatorTitle:"ਆਪਰੇਟਰ ਪੈਨਲ", welcome:"ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ, {name}",
+centreTitle:"ਕੇਂਦਰ ਚੁਣੋ", centreSub:"ਆਪਣਾ ਨਜ਼ਦੀਕੀ ਖਰੀਦ ਕੇਂਦਰ ਚੁਣੋ",
+centre1Name:"ਰਾਜ ਖਰੀਦ ਕੇਂਦਰ – ਰਾਮਪੁਰ", centre1Meta:"2.3 ਕਿਮੀ ਦੂਰ · ਅੱਜ 45/100 ਭਰਿਆ",
+centre2Name:"ਸਹਿਕਾਰੀ ਕੇਂਦਰ – ਸੋਨਪੁਰ", centre2Meta:"5.1 ਕਿਮੀ ਦੂਰ · ਅੱਜ 78/100 ਭਰਿਆ",
+centre3Name:"ਮੰਡੀ ਸਮਿਤੀ ਕੇਂਦਰ – ਗੰਜਬਾਜ਼ਾਰ", centre3Meta:"7.8 ਕਿਮੀ ਦੂਰ · ਅੱਜ 20/100 ਭਰਿਆ", continueBtn:"ਅੱਗੇ ਵਧੋ",
+bookingTitle:"ਸਲਾਟ ਬੁੱਕ ਕਰੋ", bookingSub:"ਤਾਰੀਖ ਅਤੇ ਸਮਾਂ ਚੁਣੋ", dateLabel:"ਤਾਰੀਖ ਚੁਣੋ", slotLabel:"ਸਮਾਂ ਚੁਣੋ",
+date1:"26 ਅਗਸਤ", date2:"27 ਅਗਸਤ", date3:"28 ਅਗਸਤ",
+slot1:"9:00 - 10:00", slot2Full:"10:00 - 11:00 (ਭਰਿਆ)", slot3:"11:00 - 12:00", slot4:"12:00 - 1:00", confirmBtn:"ਬੁਕਿੰਗ ਪੱਕੀ ਕਰੋ",
+tokenTitle:"ਬੁਕਿੰਗ ਪੱਕੀ ਹੋ ਗਈ", tokenSub:"ਤੁਹਾਡਾ ਟੋਕਨ ਤਿਆਰ ਹੈ", tokenNumLabel:"ਟੋਕਨ ਨੰਬਰ",
+ticketCentreLabel:"ਕੇਂਦਰ", ticketDateLabel:"ਤਾਰੀਖ", ticketTimeLabel:"ਸਮਾਂ", viewQueueBtn:"ਲਾਈਵ ਕਤਾਰ ਵੇਖੋ",
+queueTitle:"ਲਾਈਵ ਕਤਾਰ", queueSub:"ਹੁਣੇ ਕੇਂਦਰ 'ਤੇ ਕੀ ਚੱਲ ਰਿਹਾ ਹੈ", nowServingLabel:"ਹੁਣੇ ਸੇਵਾ ਵਿੱਚ", yourTokenLabel:"ਤੁਹਾਡਾ ਟੋਕਨ",
+queueUpdateLabel:"ਕਤਾਰ ਅੱਪਡੇਟ", callNextBtn:"ਅਗਲਾ ਟੋਕਨ ਬੁਲਾਓ", yourTurnBtn:"ਤੁਹਾਡੀ ਵਾਰੀ ਆ ਗਈ ✓",
+turnMessage:"ਹੁਣ ਤੁਹਾਡੀ ਵਾਰੀ ਹੈ! ਕਿਰਪਾ ਕਰਕੇ ਕਾਊਂਟਰ 'ਤੇ ਪਹੁੰਚੋ।", estimateTemplate:"ਅਨੁਮਾਨਿਤ ਉਡੀਕ: ~{min} ਮਿੰਟ ({count} ਟੋਕਨ ਬਾਕੀ)", queueEmpty:"ਹਾਲੇ ਕੋਈ ਬੁਕਿੰਗ ਨਹੀਂ ਹੈ",
+statusTitle:"ਖਰੀਦ ਅਤੇ ਭੁਗਤਾਨ ਸਥਿਤੀ", statusSubTemplate:"ਟੋਕਨ #{token} · {date}",
+stageVerify:"ਗੁਣਵੱਤਾ ਜਾਂਚ", stageWeigh:"ਵਜ਼ਨ", stagePayment:"ਭੁਗਤਾਨ", pendingLabel:"ਬਾਕੀ", completedLabel:"ਪੂਰਾ ਹੋਇਆ",
+moistureTemplate:"ਨਮੀ: {m}%", acceptedTemplate:"{q} ਕੁਇੰਟਲ ਸਵੀਕਾਰ, ਗ੍ਰੇਡ {g}",
+amountQtyLabel:"ਸਵੀਕਾਰ ਕੀਤੀ ਮਾਤਰਾ", amountRateLabel:"ਦਰ (ਪ੍ਰਤੀ ਕੁਇੰਟਲ)", amountTotalLabel:"ਕੁੱਲ ਰਕਮ",
+amountPendingNote:"ਮਾਤਰਾ ਅਤੇ ਰਕਮ ਜਾਂਚ ਤੋਂ ਬਾਅਦ ਦਿਖੇਗੀ", statusEmpty:"ਹਾਲੇ ਕੋਈ ਬੁਕਿੰਗ ਨਹੀਂ ਹੈ",
+adminTitle:"ਆਪਰੇਟਰ ਪੈਨਲ", adminSubTemplate:"ਕੇਂਦਰ: {centre} · ਅੱਜ, {date}",
+statTotalLabel:"ਕੁੱਲ ਬੁਕਿੰਗ", statCheckedInLabel:"ਚੈੱਕ-ਇਨ ਹੋਏ", statPendingLabel:"ਭੁਗਤਾਨ ਬਾਕੀ", statDoneLabel:"ਪੂਰਾ",
+thToken:"ਟੋਕਨ", thFarmer:"ਕਿਸਾਨ", thCrop:"ਫ਼ਸਲ", thSlot:"ਸਲਾਟ", thStatus:"ਸਥਿਤੀ", thAction:"ਕਾਰਵਾਈ",
+actionCheckin:"ਚੈੱਕ-ਇਨ ਕਰੋ", actionQuality:"ਜਾਂਚ ਅਤੇ ਵਜ਼ਨ", actionPayment:"ਭੁਗਤਾਨ ਪੂਰਾ ਕਰੋ", actionCompleted:"✅ ਪੂਰਾ",
+statusBooked:"ਬੁੱਕ ਹੋਇਆ", statusCheckedin:"ਚੈੱਕ-ਇਨ ਹੋਇਆ", statusPaymentPending:"ਭੁਗਤਾਨ ਬਾਕੀ", statusCompleted:"ਪੂਰਾ",
+clearBtn:"ਸਾਰਾ ਡੇਟਾ ਹਟਾਓ", clearConfirm:"ਕੀ ਤੁਸੀਂ ਸਾਰਾ ਡੇਟਾ ਹਟਾਉਣਾ ਚਾਹੁੰਦੇ ਹੋ? ਇਹ ਵਾਪਸ ਨਹੀਂ ਹੋਵੇਗਾ।",
+modalTitle:"ਜਾਂਚ ਅਤੇ ਵਜ਼ਨ ਦਰਜ ਕਰੋ", modalMoistureLabel:"ਨਮੀ (%)", modalMoisturePh:"ਜਿਵੇਂ 11",
+modalQtyLabel:"ਮਾਤਰਾ (ਕੁਇੰਟਲ)", modalQtyPh:"ਜਿਵੇਂ 42", modalGradeLabel:"ਗ੍ਰੇਡ", modalCancel:"ਰੱਦ ਕਰੋ", modalSave:"ਸੇਵ ਕਰੋ",
+modalFillError:"ਕਿਰਪਾ ਕਰਕੇ ਨਮੀ ਅਤੇ ਮਾਤਰਾ ਦੋਵੇਂ ਭਰੋ",
+notifyHeader:"ਸੂਚਨਾ (ਸਿਮੂਲੇਸ਼ਨ)",
+notifyRegisterTemplate:"ਪਿਆਰੇ {name}, ਤੁਹਾਡੀ ਰਜਿਸਟ੍ਰੇਸ਼ਨ ਪੂਰੀ ਹੋ ਗਈ ਹੈ। ਹੁਣ ਸਲਾਟ ਬੁੱਕ ਕਰੋ।",
+notifyBookingTemplate:"ਬੁਕਿੰਗ ਪੱਕੀ! ਟੋਕਨ #{token}",
+notifyQualityTemplate:"ਪਿਆਰੇ {name}, ਤੁਹਾਡੀ ਜਾਂਚ ਅਤੇ ਵਜ਼ਨ ਪੂਰਾ ਹੋ ਗਿਆ ਹੈ।",
+notifyPaymentTemplate:"ਪਿਆਰੇ {name}, ਤੁਹਾਡਾ ਭੁਗਤਾਨ ਪੂਰਾ ਹੋ ਗਿਆ ਹੈ।",
+seedName1:"ਸੁਰੇਸ਼ ਯਾਦਵ", seedName2:"ਗੀਤਾ ਦੇਵੀ", seedName3:"ਮੋਹਨ ਸਿੰਘ", seedName4:"ਰਮੇਸ਼ ਕੁਮਾਰ", seedName5:"ਸੀਤਾ ਪਟੇਲ",
+adminLoginTitle:"ਐਡਮਿਨ / ਆਪਰੇਟਰ ਲਾਗਇਨ", adminLoginSub:"ਇਹ ਸਿਰਫ਼ ਅਧਿਕਾਰਤ ਕੇਂਦਰ ਸਟਾਫ਼ ਲਈ ਹੈ। ਕਿਸਾਨ ਉੱਪਰ ਦਿੱਤੇ 'ਲਾਗਇਨ' ਟੈਬ ਦੀ ਵਰਤੋਂ ਕਰਨ।",
+emailLabel:"ਈਮੇਲ", emailPh:"you@example.com", passwordLabel:"ਪਾਸਵਰਡ", adminLoginBtn:"ਲਾਗਇਨ ਕਰੋ", logoutBtn:"ਲਾਗਆਉਟ",
+adminAuthError:"ਲਾਗਇਨ ਅਸਫਲ ਰਿਹਾ। ਕਿਰਪਾ ਕਰਕੇ ਆਪਣੀ ਈਮੇਲ ਅਤੇ ਪਾਸਵਰਡ ਜਾਂਚੋ।", adminUnauthorized:"ਇਹ ਖਾਤਾ ਐਡਮਿਨ/ਆਪਰੇਟਰ ਪਹੁੰਚ ਲਈ ਅਧਿਕਾਰਤ ਨਹੀਂ ਹੈ।",
+adminInvalidRole:"ਖਾਤੇ ਦੀ ਭੂਮਿਕਾ ਗੁੰਮ ਜਾਂ ਗਲਤ ਹੈ। ਪਹੁੰਚ ਤੋਂ ਇਨਕਾਰ।", loggedInAsAdmin:"ਐਡਮਿਨ ਵਜੋਂ ਲਾਗਇਨ ਹੈ", loggedInAsOperator:"ਆਪਰੇਟਰ ਵਜੋਂ ਲਾਗਇਨ ਹੈ"
+}
+};
+
+const LANG_KEY = 'kisan_seva_lang_v1';
+let currentLang = localStorage.getItem(LANG_KEY) || 'en';
+let otpSent = false;
+window.__otpPhone = '';
+window.__authFlowVersion = 0;
+
+function t(key, params){
+  let str = (translations[currentLang] && translations[currentLang][key] !== undefined) ? translations[currentLang][key] : (translations.en[key] || key);
+  if(params){
+    Object.keys(params).forEach(function(p){ str = str.split('{' + p + '}').join(params[p]); });
+  }
+  return str;
+}
+
+function applyLanguage(lang){
+  currentLang = lang;
+  localStorage.setItem(LANG_KEY, lang);
+  document.documentElement.lang = lang;
+  const isRtl = (lang === 'ur');
+  document.documentElement.dir = isRtl ? 'rtl' : 'ltr';
+  document.body.classList.toggle('rtl', isRtl);
+  document.body.setAttribute('lang', lang);
+  document.getElementById('langSelect').value = lang;
+
+  document.querySelectorAll('[data-i18n]').forEach(function(el){
+    el.textContent = t(el.getAttribute('data-i18n'));
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach(function(el){
+    el.setAttribute('placeholder', t(el.getAttribute('data-i18n-ph')));
+  });
+
+  document.getElementById('sendOtpBtn').textContent = t(otpSent ? 'resendOtpBtn' : 'sendOtpBtn');
+
+  // refresh default selections to current-language text (only if user hasn't picked one manually this session)
+  const selCentre = document.querySelector('.centre-card.selected .cname');
+  const selDate = document.querySelector('#dateChips .chip.selected');
+  const selSlot = document.querySelector('#slotChips .chip.selected');
+  if(selCentre) selectedCentre = selCentre.textContent;
+  if(selDate) selectedDate = selDate.textContent;
+  if(selSlot) selectedSlot = selSlot.textContent;
+
+  if(farmer){
+    document.getElementById('dashHello').textContent = t('welcome',{name:farmer.name}) + ' 👋';
+  }
+  if(currentAdminRole) updateAdminRoleLabel();  // PHASE 1: keep role label translated too
+  renderAdminTable();
+  updateQueueUI();
+  renderStatusScreen();
+}
+
+/* ===================== APP STATE ===================== */
+const STORAGE_KEY = 'kisan_seva_v2';
+let farmer = null;
+let bookings = [];
+let currentBookingId = null;
+let loginPhone = '';
+let editingBookingId = null;
+
+let selectedCentre = '';
+let selectedDate = '';
+let selectedSlot = '';
+
+function seedBookings(){
+  return [
+    { id: 1001, token: 41, name: t('seedName1'), phone:'9800000001', crop:t('crop1'), qty:38, centre:t('centre1Name'), date:t('date1'), slot:t('slot1'), currentServing:39, initialGap:2, status:'checkedin', stage:{verify:'pending',weigh:'pending',payment:'pending'}, quality:null, self:false },
+    { id: 1002, token: 42, name: t('seedName2'), phone:'9800000002', crop:t('crop2'), qty:30, centre:t('centre1Name'), date:t('date1'), slot:t('slot1'), currentServing:39, initialGap:3, status:'checkedin', stage:{verify:'pending',weigh:'pending',payment:'pending'}, quality:null, self:false },
+    { id: 1003, token: 43, name: t('seedName3'), phone:'9800000003', crop:t('crop1'), qty:45, centre:t('centre1Name'), date:t('date1'), slot:t('slot3'), currentServing:39, initialGap:4, status:'checkedin', stage:{verify:'done',weigh:'done',payment:'done'}, quality:{moisture:'12',qty:'44',grade:'A'}, self:false },
+    { id: 1004, token: 44, name: t('seedName4'), phone:'9800000004', crop:t('crop3'), qty:20, centre:t('centre1Name'), date:t('date1'), slot:t('slot3'), currentServing:39, initialGap:5, status:'booked', stage:{verify:'pending',weigh:'pending',payment:'pending'}, quality:null, self:false },
+    { id: 1005, token: 45, name: t('seedName5'), phone:'9800000005', crop:t('crop4'), qty:60, centre:t('centre1Name'), date:t('date1'), slot:t('slot4'), currentServing:39, initialGap:6, status:'booked', stage:{verify:'pending',weigh:'pending',payment:'pending'}, quality:null, self:false }
+  ];
+}
+
+function saveData(){
+  saveLocalDataOnly();
+  // Phase 2: always authenticate the farmer first, then write the farmer and
+  // all of the farmer's bookings. LocalStorage remains the immediate fallback.
+  if(farmer && firebaseDataReady() && !isAdminSession()){
+    ensureFarmerFirebaseAuth().then(function(user){
+      if(!user){
+        throw firestoreSyncError || new Error('Anonymous Firebase authentication failed.');
+      }
+      return syncFarmerToFirestore().then(function(){
+        const uid = getFarmerDocId();
+        const mine = bookings.filter(function(b){ return b.self || b.farmerUid === uid; });
+        return Promise.all(mine.map(syncBookingToFirestore));
+      });
+    }).then(function(){
+      firestoreSyncReady = true;
+      firestoreUsingLocalFallback = false;
+      console.log('Phase 2 Firestore sync successful.');
+    }).catch(function(e){
+      firestoreSyncError = e;
+      firestoreUsingLocalFallback = true;
+      console.error('Phase 2 Firestore sync failed:', e);
+      showNotify('Firestore sync failed: ' + (e && e.message ? e.message : 'Unknown error'));
+    });
+  }
+}
+
+function loadData(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw){ bookings = seedBookings(); saveLocalDataOnly(); return; }
+    const data = JSON.parse(raw);
+    farmer = data.farmer || null;
+    bookings = (data.bookings && data.bookings.length) ? data.bookings : seedBookings();
+    currentBookingId = data.currentBookingId || null;
+  }catch(e){ console.log('load failed', e); bookings = seedBookings(); }
+}
+
+function clearAllData(){
+  if(!confirm(t('clearConfirm'))) return;
+  localStorage.removeItem(STORAGE_KEY);
+  farmer = null;
+  bookings = seedBookings();
+  currentBookingId = null;
+  loginPhone = '';
+  otpSent = false;
+  saveLocalDataOnly();
+  renderAdminTable();
+  updateQueueUI();
+  renderStatusScreen();
+  showAuthMode('login');
+}
+
+/* ===== Notification (simulated) ===== */
+let notifyTimer = null;
+function showNotify(message){
+  const toast = document.getElementById('notify-toast');
+  document.getElementById('notifyBody').textContent = message;
+  const now = new Date();
+  document.getElementById('notifyTime').textContent = 'Now · ' + now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  toast.classList.add('show');
+  if(notifyTimer) clearTimeout(notifyTimer);
+  notifyTimer = setTimeout(function(){ toast.classList.remove('show'); }, 4500);
+}
+document.getElementById('notify-toast').addEventListener('click', function(){ this.classList.remove('show'); });
+
+/* ===== Navigation ===== */
+function showAuthMode(mode){
+  const isLogin = mode !== 'register';
+  const authScreen = document.getElementById('screen-auth');
+  if(!authScreen) return;
+  if(isLogin && !document.getElementById('otpSection').contains(document.activeElement)){
+    // Keep the current login attempt if the user is in the OTP step.
+  }
+  if(!isLogin && !window.__otpPhone){
+    const current = String(document.getElementById('regPhoneDisplay').value || '').trim();
+    if(current) loginPhone = current;
+  }
+
+  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+  authScreen.classList.add('active');
+  document.getElementById('authLoginPanel').style.display = isLogin ? 'block' : 'none';
+  document.getElementById('authRegisterPanel').style.display = isLogin ? 'none' : 'block';
+  document.getElementById('authLoginTab').classList.toggle('active', isLogin);
+  document.getElementById('authRegisterTab').classList.toggle('active', !isLogin);
+  document.querySelectorAll('.quick-jump button').forEach(function(b){ b.classList.toggle('current', b.dataset.id === 'screen-auth'); });
+  if(!isLogin && loginPhone){
+    document.getElementById('regPhoneDisplay').value = loginPhone;
+  }
+}
+
+function showScreen(id){
+  // Backward compatibility for old navigation calls.
+  if(id === 'screen-login'){ showAuthMode('login'); return; }
+  if(id === 'screen-register'){ showAuthMode('register'); return; }
+  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+  document.getElementById(id).classList.add('active');
+  document.querySelector('.screen-area').scrollTop = 0;
+  document.querySelectorAll('.quick-jump button').forEach(function(b){ b.classList.toggle('current', b.dataset.id === id); });
+  if(id === 'screen-queue') updateQueueUI();
+  if(id === 'screen-status') renderStatusScreen();
+}
+
+// PHASE 1: switchView now checks real Firebase authentication + role
+// before showing the protected admin/operator dashboard. Clicking the
+// "Operator View" tab (or calling this directly) no longer opens the
+// dashboard by itself - it opens the login form instead, unless the
+// user is already authenticated AND authorized.
+function switchView(view){
+  const isFarmer = view === 'farmer';
+  document.getElementById('tabFarmer').classList.toggle('active', isFarmer);
+  document.getElementById('tabAdmin').classList.toggle('active', !isFarmer);
+
+  if(isFarmer){
+    document.getElementById('farmerView').style.display = 'block';
+    document.getElementById('adminLoginView').style.display = 'none';
+    document.getElementById('adminView').classList.remove('active');
+    return;
+  }
+
+  document.getElementById('farmerView').style.display = 'none';
+
+  if(currentAdminUser && currentAdminRole){
+    document.getElementById('adminLoginView').style.display = 'none';
+    document.getElementById('adminView').classList.add('active');
+    updateAdminRoleLabel();
+    renderAdminTable();
+  } else {
+    document.getElementById('adminView').classList.remove('active');
+    document.getElementById('adminLoginView').style.display = 'block';
+  }
+}
+
+/* ===== Login ===== */
+function sendOtp(){
+  const phone = document.getElementById('phoneInput').value.trim();
+  const err = document.getElementById('phoneError');
+  if(phone.length !== 10 || isNaN(phone)){
+    err.textContent = t('phoneError'); err.style.display = 'block'; return;
+  }
+  err.style.display = 'none';
+
+  // Lock the phone number for this OTP attempt. Background Firestore refreshes
+  // must never replace it with an older locally stored farmer.
+  loginPhone = phone;
+  window.__otpPhone = phone;
+  window.__authFlowVersion = (window.__authFlowVersion || 0) + 1;
+
+  document.getElementById('otpSection').style.display = 'block';
+  otpSent = true;
+  document.getElementById('sendOtpBtn').textContent = t('resendOtpBtn');
+}
+
+function verifyOtp(){
+  const otp = document.getElementById('otpInput').value.trim();
+  const err = document.getElementById('otpError');
+  if(otp !== '1234'){ err.textContent = t('otpError'); err.style.display = 'block'; return; }
+  err.style.display = 'none';
+
+  const enteredPhone = String(window.__otpPhone || document.getElementById('phoneInput').value || '').trim();
+  loginPhone = enteredPhone;
+
+  // A stored farmer is an existing account ONLY when the phone matches.
+  // Old localStorage/anonymous-Firebase data must not make a new number log in.
+  const existingFarmerMatches = !!(farmer && String(farmer.phone || '').trim() === enteredPhone);
+
+  if(existingFarmerMatches){
+    document.getElementById('dashHello').textContent = t('welcome',{name:farmer.name}) + ' 👋';
+    showScreen('screen-dashboard');
+  } else {
+    // New phone -> discard only the old local farmer session and start registration.
+    farmer = null;
+    bookings = bookings.filter(function(b){ return !b.self; });
+    currentBookingId = null;
+    saveLocalDataOnly();
+    document.getElementById('regName').value = '';
+    document.getElementById('regVillage').value = '';
+    document.getElementById('regCrop').value = '';
+    document.getElementById('regQty').value = '';
+    document.getElementById('regPhoneDisplay').value = enteredPhone;
+    document.getElementById('regError').style.display = 'none';
+    showAuthMode('register');
+  }
+}
+
+/* ===== Registration ===== */
+function registerFarmer(){
+  const name = document.getElementById('regName').value.trim();
+  const village = document.getElementById('regVillage').value.trim();
+  const crop = document.getElementById('regCrop').value;
+  const qty = document.getElementById('regQty').value;
+  const err = document.getElementById('regError');
+
+  if(!name || !village || !crop || !qty){ err.textContent = t('regError'); err.style.display = 'block'; return; }
+  err.style.display = 'none';
+
+  const registrationPhone = document.getElementById('regPhoneDisplay').value.trim();
+  if(registrationPhone.length !== 10 || isNaN(registrationPhone)){ err.textContent = t('phoneError'); err.style.display = 'block'; return; }
+
+  loginPhone = registrationPhone;
+  window.__otpPhone = registrationPhone;
+  farmer = { name: name, phone: registrationPhone, village: village, crop: crop, qty: qty };
+  saveLocalDataOnly();
+
+  // UI first; Firebase sync must never block registration.
+  showNotify(t('notifyRegisterTemplate',{name:name}));
+  document.getElementById('dashHello').textContent = t('welcome',{name:name}) + ' 👋';
+  showScreen('screen-dashboard');
+
+  if(firebaseDataReady() && !isAdminSession()){
+    ensureFarmerFirebaseAuth().then(function(user){
+      if(!user) throw firestoreSyncError || new Error('Anonymous Firebase authentication failed.');
+      return syncFarmerToFirestore();
+    }).then(function(){
+      firestoreSyncReady = true;
+      firestoreUsingLocalFallback = false;
+      console.log('Phase 2 farmer registration sync successful.');
+    }).catch(function(e){
+      firestoreSyncError = e;
+      firestoreUsingLocalFallback = true;
+      console.error('Phase 2 farmer registration sync failed:', e);
+      showNotify('Registration saved on device. Firebase sync failed: ' + (e && e.message ? e.message : 'Unknown error'));
+    });
+  }
+}
+
+/* ===== Centre / date / slot selection ===== */
+function selectCentre(el){
+  document.querySelectorAll('.centre-card').forEach(function(c){ c.classList.remove('selected'); });
+  el.classList.add('selected');
+  selectedCentre = el.querySelector('.cname').textContent;
+}
+function selectDate(el){
+  document.querySelectorAll('#dateChips .chip').forEach(function(c){ c.classList.remove('selected'); });
+  el.classList.add('selected');
+  selectedDate = el.textContent;
+}
+function selectSlot(el){
+  if(el.classList.contains('full')) return;
+  document.querySelectorAll('#slotChips .chip').forEach(function(c){ c.classList.remove('selected'); });
+  el.classList.add('selected');
+  selectedSlot = el.textContent;
+}
+
+/* ===== Booking ===== */
+function confirmBooking(){
+  if(!farmer){
+    farmer = { name: t('seedName4'), phone: loginPhone || '9800000000', village:'-', crop:t('crop1'), qty:'40' };
+    saveData();
+  }
+  const tokenNumber = Math.floor(Math.random() * 12) + 46;
+  const currentServing = 39;
+  const initialGap = tokenNumber - currentServing;
+  const newBooking = {
+    id: Date.now(), token: tokenNumber, name: farmer.name, phone: farmer.phone, crop: farmer.crop, qty: farmer.qty,
+    centre: selectedCentre, date: selectedDate, slot: selectedSlot,
+    currentServing: currentServing, initialGap: initialGap, status: 'booked',
+    stage: { verify:'pending', weigh:'pending', payment:'pending' }, quality: null, self: true,
+    farmerUid: getFarmerDocId() || null
+  };
+
+  bookings = bookings.filter(function(b){ return !b.self; });
+  bookings.push(newBooking);
+  currentBookingId = newBooking.id;
+
+  const finishBookingUI = function(){
+    document.getElementById('tokenNumberDisplay').textContent = '#' + tokenNumber;
+    document.getElementById('tokenCentreDisplay').textContent = selectedCentre;
+    document.getElementById('tokenDateDisplay').textContent = selectedDate;
+    document.getElementById('tokenSlotDisplay').textContent = selectedSlot;
+    showNotify(t('notifyBookingTemplate',{token:tokenNumber}));
+    updateQueueUI();
+    renderAdminTable();
+    showScreen('screen-token');
+  };
+
+  if(firebaseDataReady() && !isAdminSession()){
+    ensureFarmerFirebaseAuth().then(function(user){
+      if(!user) throw firestoreSyncError || new Error('Anonymous Firebase authentication failed.');
+      // Ensure the new booking carries the authenticated farmer UID.
+      newBooking.farmerUid = getFarmerDocId();
+      return syncFarmerToFirestore().then(function(){ return syncBookingToFirestore(newBooking); });
+    }).then(function(){
+      firestoreSyncReady = true;
+      firestoreUsingLocalFallback = false;
+      finishBookingUI();
+    }).catch(function(e){
+      firestoreSyncError = e;
+      firestoreUsingLocalFallback = true;
+      showNotify('Firebase sync failed: ' + (e && e.message ? e.message : 'Unknown error'));
+      finishBookingUI();
+    });
+  } else {
+    saveData();
+    finishBookingUI();
+  }
+
+  return;
+
+  document.getElementById('tokenNumberDisplay').textContent = '#' + tokenNumber;
+} 
+
+function getMyBooking(){ return bookings.find(function(b){ return b.id === currentBookingId; }) || null; }
+
+/* ===== Queue screen ===== */
+function updateQueueUI(){
+  const b = getMyBooking();
+  const content = document.getElementById('queueContent');
+  const empty = document.getElementById('queueEmpty');
+  if(!b){ content.style.display = 'none'; empty.style.display = 'block'; return; }
+  content.style.display = 'block'; empty.style.display = 'none';
+
+  document.getElementById('queueServingNum').textContent = '#' + b.currentServing;
+  document.getElementById('queueMyToken').textContent = '#' + b.token;
+
+  const remaining = b.token - b.currentServing;
+  const percent = b.initialGap <= 0 ? 100 : Math.min(100, Math.round(((b.initialGap - remaining) / b.initialGap) * 100));
+  document.getElementById('queueProgressFill').style.width = percent + '%';
+
+  const btn = document.getElementById('simulateBtn');
+  if(remaining <= 0){
+    document.getElementById('queueEstimate').textContent = t('turnMessage');
+    btn.disabled = true;
+    btn.textContent = t('yourTurnBtn');
+  } else {
+    document.getElementById('queueEstimate').textContent = t('estimateTemplate', {min: remaining*3, count: remaining});
+    btn.disabled = false;
+    btn.textContent = t('callNextBtn');
+  }
+}
+
+function simulateNextToken(){
+  const b = getMyBooking();
+  if(!b) return;
+  if(b.currentServing < b.token){ b.currentServing++; saveData(); updateQueueUI(); }
+}
+
+/* ===== Status screen ===== */
+function renderStatusScreen(){
+  const b = getMyBooking();
+  const content = document.getElementById('statusContent');
+  const empty = document.getElementById('statusEmpty');
+  if(!b){ content.style.display = 'none'; empty.style.display = 'block'; return; }
+  content.style.display = 'block'; empty.style.display = 'none';
+
+  document.getElementById('statusSub').textContent = t('statusSubTemplate', {token:b.token, date:b.date});
+
+  document.getElementById('statusBookingMini').innerHTML =
+    '<div><strong>' + b.name + '</strong> · ' + b.crop + '</div>' +
+    '<div>' + b.centre + '</div>' +
+    '<div>' + b.date + ' · ' + b.slot + '</div>';
+
+  const steps = [
+    { key:'verify', label:t('stageVerify') },
+    { key:'weigh', label:t('stageWeigh') },
+    { key:'payment', label:t('stagePayment') }
+  ];
+  document.getElementById('statusTimeline').innerHTML = steps.map(function(s){
+    const done = b.stage[s.key] === 'done';
+    let sub = done ? t('completedLabel') : t('pendingLabel');
+    if(s.key === 'weigh' && done && b.quality) sub = t('acceptedTemplate', {q:b.quality.qty, g:b.quality.grade});
+    if(s.key === 'verify' && done && b.quality) sub = t('moistureTemplate', {m:b.quality.moisture});
+    return '<div class="t-step ' + (done ? '' : 'pending') + '">' +
+      '<div class="t-dot">' + (done ? '✓' : '⏳') + '</div>' +
+      '<div class="t-text"><div class="t-title">' + s.label + '</div><div class="t-sub">' + sub + '</div></div>' +
+    '</div>';
+  }).join('');
+
+  const amountBox = document.getElementById('statusAmountBox');
+  if(b.stage.weigh === 'done' && b.quality){
+    const rate = 2275;
+    const qty = parseFloat(b.quality.qty) || 0;
+    const total = Math.round(qty * rate);
+    amountBox.innerHTML =
+      '<div class="amount-row"><span>' + t('amountQtyLabel') + '</span><span class="ltr-num">' + qty + '</span></div>' +
+      '<div class="amount-row"><span>' + t('amountRateLabel') + '</span><span class="ltr-num">₹' + rate.toLocaleString('en-IN') + '</span></div>' +
+      '<div class="amount-row total"><span>' + t('amountTotalLabel') + '</span><span class="ltr-num">₹' + total.toLocaleString('en-IN') + '</span></div>';
+  } else {
+    amountBox.innerHTML = '<div style="font-size:0.83rem; color:var(--muted);">' + t('amountPendingNote') + '</div>';
+  }
+}
+
+/* ===== Admin panel ===== */
+function statusText(b){
+  if(b.stage.payment === 'done') return t('statusCompleted');
+  if(b.status === 'checkedin' && b.stage.weigh === 'done') return t('statusPaymentPending');
+  if(b.status === 'checkedin') return t('statusCheckedin');
+  return t('statusBooked');
+}
+function badgeClass(b){
+  if(b.stage.payment === 'done') return 'badge-done';
+  if(b.status === 'checkedin') return 'badge-active';
+  return 'badge-pending';
+}
+function actionCell(b){
+  if(b.status === 'booked'){ return '<button class="btn-sm" onclick="checkInBooking(' + b.id + ')">' + t('actionCheckin') + '</button>'; }
+  if(b.status === 'checkedin' && b.stage.weigh !== 'done'){ return '<button class="btn-sm btn-sm-gold" onclick="openQualityForm(' + b.id + ')">' + t('actionQuality') + '</button>'; }
+  if(b.stage.weigh === 'done' && b.stage.payment !== 'done'){ return '<button class="btn-sm" onclick="markPaymentDone(' + b.id + ')">' + t('actionPayment') + '</button>'; }
+  return '<span class="done-label">' + t('actionCompleted') + '</span>';
+}
+
+function renderAdminTable(){
+  document.getElementById('adminSub').textContent = t('adminSubTemplate', {centre:t('centre1Name'), date:t('date1')});
+  const tbody = document.getElementById('adminTableBody');
+  tbody.innerHTML = bookings.map(function(b){
+    return '<tr>' +
+      '<td class="ltr-num">#' + b.token + '</td>' +
+      '<td>' + b.name + '</td>' +
+      '<td>' + b.crop + '</td>' +
+      '<td class="ltr-num">' + b.slot + '</td>' +
+      '<td><span class="badge ' + badgeClass(b) + '">' + statusText(b) + '</span></td>' +
+      '<td>' + actionCell(b) + '</td>' +
+      '</tr>';
+  }).join('');
+
+  document.getElementById('statTotal').textContent = bookings.length;
+  document.getElementById('statCheckedIn').textContent = bookings.filter(function(b){ return b.status !== 'booked'; }).length;
+  document.getElementById('statPending').textContent = bookings.filter(function(b){ return b.stage.weigh === 'done' && b.stage.payment !== 'done'; }).length;
+  document.getElementById('statDone').textContent = bookings.filter(function(b){ return b.stage.payment === 'done'; }).length;
+}
+
+function checkInBooking(id){
+  const b = bookings.find(function(x){ return x.id === id; });
+  if(!b) return;
+  b.status = 'checkedin';
+  saveData();
+  syncBookingToFirestore(b).catch(function(e){ console.warn('Check-in sync failed:', e); });
+  renderAdminTable();
+  if(b.self) renderStatusScreen();
+}
+
+function openQualityForm(id){
+  editingBookingId = id;
+  const b = bookings.find(function(x){ return x.id === id; });
+  document.getElementById('modalFarmerName').textContent = b.name + ' (#' + b.token + ')';
+  document.getElementById('moistureInput').value = '';
+  document.getElementById('qtyInput').value = '';
+  document.getElementById('qualityModal').classList.add('active');
+}
+function closeQualityForm(){ document.getElementById('qualityModal').classList.remove('active'); }
+function submitQuality(){
+  const moisture = document.getElementById('moistureInput').value.trim();
+  const qty = document.getElementById('qtyInput').value.trim();
+  const grade = document.getElementById('gradeSelect').value;
+  if(!moisture || !qty){ alert(t('modalFillError')); return; }
+  const b = bookings.find(function(x){ return x.id === editingBookingId; });
+  if(b){
+    b.stage.verify = 'done'; b.stage.weigh = 'done';
+    b.quality = { moisture: moisture, qty: qty, grade: grade };
+    saveData();
+    syncBookingToFirestore(b).catch(function(e){ console.warn('Quality sync failed:', e); });
+    showNotify(t('notifyQualityTemplate',{name:b.name}));
+    if(b.self) renderStatusScreen();
+  }
+  closeQualityForm();
+  renderAdminTable();
+}
+
+function markPaymentDone(id){
+  const b = bookings.find(function(x){ return x.id === id; });
+  if(!b) return;
+  b.stage.payment = 'done';
+  saveData();
+  syncBookingToFirestore(b).catch(function(e){ console.warn('Payment sync failed:', e); });
+  showNotify(t('notifyPaymentTemplate',{name:b.name}));
+  renderAdminTable();
+  if(b.self) renderStatusScreen();
+}
+
+/* ===== Init on load ===== */
+loadData();
+document.getElementById('langSelect').value = currentLang;
+applyLanguage(currentLang);
+
+// Always open the public authentication page first. Do not use the
+// presence of localStorage farmer data as proof of an active login.
+if(farmer){
+  document.getElementById('regPhoneDisplay').value = farmer.phone;
+  loginPhone = farmer.phone;
+  document.getElementById('dashHello').textContent = t('welcome',{name:farmer.name}) + ' 👋';
+}
+showAuthMode('login');
+// Phase 2: after Firebase config is real, refresh the farmer/booking data from Firestore.
+if(firebaseReady){ refreshFarmerFromFirestore(); }
+</script>
+</body>
+</html>
